@@ -5,7 +5,7 @@
 #define ALTURA 600
 
 void menu(){
-    DrawText("Solecione uma opcao:", 300, 200, 40, BLACK);
+    DrawText("Selecione uma opcao:", 300, 200, 40, BLACK);
 
     DrawText("N: novo jogo", 300, 300, 40, BLACK);
     DrawText("C: carregar jogo", 300, 350, 40, BLACK);
