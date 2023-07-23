@@ -6,7 +6,7 @@ Esse algoritmo pega um ponto aleatorio ou nao do mapa e comeca a gerar caminhos 
 #include <time.h>
 #define WIDTH 60  //Largura do mapa
 #define HEIGHT 30  //Altura do mapa
-#define MAX_TUNNELS 50
+#define MAX_TUNNELS 50 //Quantidate de tuneis que vai gerar
 
 //Define o espacamento entra os tuneis(0 e o espacamento padrao 1x1):
 #define PADDING 3
