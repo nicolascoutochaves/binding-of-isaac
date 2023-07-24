@@ -1,0 +1,31 @@
+############################################################
+#         X                                                #
+#     H   X                                                #
+#         X                                                #
+#XXXXXXXXXX                                                #
+#    B    #                             J                  #
+#         #                                                #
+#         ###########X            B                        #
+#                                                          #
+#                                                          #
+#                                                          #
+#       I                                            X     #
+#                                                          #
+######################X                                    #
+#  X                  X                                    #
+P                     X                                    #
+#  X                  X                                    #
+#  X     B                                                 #
+######################X                                    #
+#                                  X                       #
+#                                                          #
+#                                                          #
+#                                                          #
+#                  #                                       #
+#                  #           I                           #
+#                  #                                       #
+#                  #                                       #
+#     B            #                                       #
+############################################################
+############################################################
+//H=Hack. Caso de tempo para a gente fazer um 'desafio' de colocar xeat no jogo pensei em o cara usar algo para atravessar fogo ele fica invencivel
