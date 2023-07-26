@@ -1,7 +1,8 @@
 #include "raylib.h"
-#include <string.h>
 
-#define LARGURA 900
+#include "movimentacao.c"
+
+#define LARGURA 600
 #define ALTURA 600
 
 void menu(){  
@@ -15,7 +16,7 @@ void menu(){
 
         if(IsKeyPressed(KEY_N)){
 
-            novo_jogo();
+           
             
         }
 
@@ -40,7 +41,11 @@ void menu(){
 
 }
 
-  void novo_jogo(){
+  void novo_jogo(int *x, int *y, int map[MAP_HEIGHT][MAP_WIDTH]){
+    int difficulty = 2;
+    movimentar(x, y, map);
+    DrawRectangle(*x, *y, LADO_QUADRADO, LADO_QUADRADO, GREEN);
+        
 }
 
 void carregar_jogo(){
@@ -66,24 +71,35 @@ void sair_jogo(){
         CloseWindow();
     }
 
-
 }
 
 void voltar_jogo(){
-}  
+}
+
+
+
+
 
 int main(void){
+    
+   
+    int map[MAP_HEIGHT][MAP_WIDTH] = {0};
+    generateMap(map);
 
     InitWindow(LARGURA, ALTURA, "JOGO");
     SetTargetFPS(60);
     SetExitKey(KEY_NULL);//remove a opcao de sair do jogo
+    int fatorx = LARGURA / MAP_WIDTH, fatory = ALTURA / MAP_HEIGHT;
+    int x, y;
+
+    x = (MAP_WIDTH * fatorx -(3*fatorx) )- LADO; //Pois lado sempre sera divisor da largura ou altura.
+    y = 3*fatory; //Pois lado sempre sera 
 
     while (!WindowShouldClose()) // Detect window close button or exit key
     {
-        if (IsKeyPressed(KEY_M)) menu();
-
+        //if (IsKeyPressed(KEY_M)) menu();
+        novo_jogo(&x, &y, map);
         BeginDrawing();//Inicia o ambiente de desenho na tela
-        if (IsKeyPressed(KEY_M)) menu();
         ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo
         EndDrawing();//Finaliza o ambiente de desenho na tela
     }

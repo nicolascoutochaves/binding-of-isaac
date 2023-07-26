@@ -4,26 +4,25 @@ Esse algoritmo pega um ponto aleatorio ou nao do mapa e comeca a gerar caminhos 
 #include<stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#define WIDTH 60  //Largura do mapa
-#define HEIGHT 30  //Altura do mapa
-#define MAX_TUNNELS 50 //Quantidate de tuneis que vai gerar
+#define MAP_WIDTH 60  //Largura do mapa
+#define MAP_HEIGHT 30  //Altura do mapa
+#define MAX_TUNNELS 100 //Quantidate de tuneis que vai gerar
 
 //Define o espacamento entra os tuneis(0 e o espacamento padrao 1x1):
-#define PADDING 3
+#define PADDING 4
 
 //Funcao booleana que verifica se o tunel deve se mover em determinada direcao para evitar que as paredes sejam removidas ou ocorra problemas de acesso de posicoes inexistentes na matriz:
-int shouldMove(int i, int j, int dx, int dy, int width, int height) {
+int canGenerate(int i, int j, int dx, int dy, int width, int height) {
     int move = 1;
-    if( (i == (height-2) && dy == 1) || (i == 1 && dy == -1))
+    if( (i == (MAP_HEIGHT-2) && dy == 1) || (i == 1 && dy == -1))
         move = 0;
     if( (j == (width-2) && dx == 1) || (j == 1 && dx == -1))
         move = 0;
     return move;
 }
 
-int main()
+void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
 {
-    int m[HEIGHT][WIDTH] = {0}; //Inicializa o mapa 100% preenchido
     int i, j, k, l; //Variaveis de controle da matriz
     int s = 0, dx = 0, dy = 0; //Variaveis que definem a direcao e os sentidos
     int s_ant = s; //Sentido anterior(s indica se esta movendo no eixo x ou no eixo y)
@@ -31,12 +30,12 @@ int main()
 
     srand(time(NULL)); //Gera a seed da funcao rand() usando o tempo do sistema
 
-/*  Define a posicao i e j da matriz para que o tunel sempre comece a partir da posicao m[1][WIDTH - 2], que e a posicao do portal.
+/*  Define a posicao i e j da matriz para que o tunel sempre comece a partir da posicao m[1][MAP_WIDTH - 2], que e a posicao do portal.
     Dessa forma garantimos que sempre havera um caminho livre ate o portal.
     Para iniciar em uma posicao aleatoria, utilize o trecho comentado abaixo:*/
 
-    i = 1; //1 + (rand() % HEIGHT-3);
-    j = WIDTH - 2; //1 + (rand() % WIDTH-3);
+    i = 1; //1 + (rand() % MAP_HEIGHT-3);
+    j = MAP_WIDTH - 2; //1 + (rand() % MAP_WIDTH-3);
     m[i][j] = 1;
 
     //laco principal da geracao dos tuneis
@@ -59,10 +58,10 @@ int main()
         }
         //Define a quantidade de passos que deve dar no sentido e direcao atuais:
             while(steps == 0)
-                steps = (rand() % (WIDTH-2)) ;
+                steps = (rand() % (MAP_WIDTH-2)) ;
 
         //laco que insere os tuneis na matriz enquanto a quantidade de passos sorteada e maior que 0
-        while(steps > 0 && shouldMove(i,j,dx,dy,WIDTH,HEIGHT)) {
+        while(steps > 0 && canGenerate(i,j,dx,dy,MAP_WIDTH,MAP_HEIGHT)) {
 
             i += dy; //acrescenta o sentido de y em i
             j += dx; //acrescenta o sentido de x em j
@@ -77,7 +76,7 @@ int main()
             while(count_padding > 0) {
                 //Condicionais que verificam onde inserior os espacos extras, para evitar que seja inserido um espaco em locais proibidos:
 
-                if(k + count_padding < (HEIGHT - 2)) {
+                if(k + count_padding < (MAP_HEIGHT - 2)) {
                     k += count_padding;
                     m[k][j] = 1;
                     k -= count_padding;
@@ -89,7 +88,7 @@ int main()
                     k += count_padding;
                 }
 
-                if(l + count_padding < (WIDTH - 2)) {
+                if(l + count_padding < (MAP_WIDTH - 2)) {
                     l += count_padding;
                     m[i][l] = 1;
                     l -= count_padding;
@@ -162,9 +161,21 @@ int main()
         tunnels++;
     }
 
+    
+}
+
+void setSpawns(int m[MAP_HEIGHT][MAP_WIDTH], int difficulty, int current_map){
+    int n_enemies = difficulty * current_map;
+    if (n_enemies > 15) n_enemies = 15;
+    int n_traps = difficulty * current_map;
+    
+}
+
+void printMap(int m[MAP_HEIGHT][MAP_WIDTH]){
+    int i, j;
     //Imprime a matriz, substituindo os valores '1' para espacos em branco e '0' para '#'
-    for (i=0; i<HEIGHT; i++) {
-        for (j=0; j<WIDTH; j++) {
+    for (i=0; i<MAP_HEIGHT; i++) {
+        for (j=0; j<MAP_WIDTH; j++) {
             if(m[i][j] == 1)
                 printf(" ");
             else
@@ -173,8 +184,4 @@ int main()
         printf("\n");
     }
 
-
-
-
-    return 0;
 }
