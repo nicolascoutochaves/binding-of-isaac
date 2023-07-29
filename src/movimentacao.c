@@ -2,7 +2,7 @@
 Esse programa movimenta um quadrado usando funcoes ate que o quadrado atinja a borda da tela
 */
 #include "raylib.h"
-#include "map.c"
+#include "../include/game.h"
 #include <stdlib.h>
 #include <time.h>
 
