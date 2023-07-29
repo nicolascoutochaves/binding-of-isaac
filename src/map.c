@@ -4,7 +4,7 @@ Esse algoritmo pega um ponto aleatorio ou nao do mapa e comeca a gerar caminhos 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "game.h"
+#include "../include/game.h"
 
 
 //Funcao booleana que verifica se o tunel deve se mover em determinada direcao para evitar que as paredes sejam removidas ou ocorra problemas de acesso de posicoes inexistentes na matriz:
