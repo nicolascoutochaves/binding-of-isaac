@@ -5,7 +5,7 @@ typedef struct Entidades{
     int x; //posicao x
     int y; //posicao y
     int vida;
-    int pontuacao;//
+    int pontuacao;
 } Entidade; //Struct usada para criar novas "entidades" como jogadores e inimigos.
 
 void novo_jogo(char *state){

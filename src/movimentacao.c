@@ -3,6 +3,7 @@ Esse programa movimenta um quadrado usando funcoes ate que o quadrado atinja a b
 */
 #include "raylib.h"
 #include "../include/game.h"
+#include "map.c"
 #include <stdlib.h>
 #include <time.h>
 
@@ -17,7 +18,7 @@ int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy, int fa
         (m[(y)/FATORY][(x/FATORX)-1] == 0 && dx == -1)||
         (m[(y+LADO_QUADRADO)/FATORY][(x/FATORX)-1] == 0 && dx == -1)) deve_mover = 0;
 
-     if(
+    if(
         (m[(y)/FATORY-1][(x)/FATORX] == 0 && dy == 1)||
         (m[(y)/FATORY-1][(x+LADO_QUADRADO)/FATORX] == 0 && dy == 1)||
         (m[(y+LADO_QUADRADO)/FATORY][(x)/FATORX] == 0 && dy == -1)||
@@ -60,7 +61,7 @@ void movimentar(int *x, int *y, int map[MAP_HEIGHT][MAP_WIDTH])
         move(dx, dy, x, y); 
     
     //reseta as direcoes para que o movimento nao fique infinito e para que quando o quadrado encoste na parede em dx ele ainda possa se mover em dy e vice versa:
-    dy = 0;
     dx = 0;
+    dy = 0;
 }
  
