@@ -1,24 +1,20 @@
 /* Gerador de mapas 2 X 2 que se baseia no algoritmo da caminhada do bebado (Drunkard's Walk Algorithms).
 Esse algoritmo pega um ponto aleatorio ou nao do mapa e comeca a gerar caminhos com direcoes, sentidos e quantidades de passos aleatorios, Sem exluir as paredes que compoem as 4 bordas do mapa ou criar caminhos desconectados.
 */
-#include<stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#define MAP_WIDTH 60  //Largura do mapa
-#define MAP_HEIGHT 30  //Altura do mapa
-#define MAX_TUNNELS 100 //Quantidate de tuneis que vai gerar
+#include "game.h"
 
-//Define o espacamento entra os tuneis(0 e o espacamento padrao 1x1):
-#define PADDING 4
 
 //Funcao booleana que verifica se o tunel deve se mover em determinada direcao para evitar que as paredes sejam removidas ou ocorra problemas de acesso de posicoes inexistentes na matriz:
 int canGenerate(int i, int j, int dx, int dy, int width, int height) {
-    int move = 1;
+    int generate = 1;
     if( (i == (MAP_HEIGHT-2) && dy == 1) || (i == 1 && dy == -1))
-        move = 0;
+        generate = 0;
     if( (j == (width-2) && dx == 1) || (j == 1 && dx == -1))
-        move = 0;
-    return move;
+        generate = 0;
+    return generate;
 }
 
 void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
@@ -103,49 +99,6 @@ void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
                 //aqui a variavel count_padding vai decrementando para que na proxima iteracao o padding seja adicionado numa posicao a mais ou a menos, dependendo da condicional
                 count_padding--;
 
-                /* Exemplo: se PADDING e igual a 2, pegamos alguns valores quaisquer de k ou l:
-
-                      | 0 | 1 | 2 | 3 | 4 |...|
-                    --|---|---|---|---|---|
-                    0 | # | k | # |k+2| # |
-                    --|---|---|---|---|---|
-                    1 | # | # | # | # | # | 
-                    --|---|---|---|---|---|
-                    . |
-
-                   -> '#' representa uma parede
-
-                   -> k e incrementado no valor de padding pela variavel count_padding, ou seja, k+=2
-                   -> em seguida, na nova posicao k, a matriz recebe um valor correspondente ao espaco em branco
-
-                      | 0 | 1 | 2 | 3 | 4 |...|
-                    --|---|---|---|---|---|
-                    0 | # |k-2| # |k  | # |
-                    --|---|---|---|---|---|
-                    1 | # | # | # | # | # | 
-                    --|---|---|---|---|---|
-                    . |
-                   -> k e decrementado pelo mesmo valor de count_padding e volta a posicao original
-                   -> count_padding e decrementado e passa a ser 1: o loop repete enquanto count_padding for > 0
-                   -> Agora k,que havia voltado ao valor original e incrementado pelo count_padding:
-                      | 0 | 1 | 2 | 3 | 4 |...|
-                    --|---|---|---|---|---|
-                    0 | # |k  |k+1|   | # |
-                    --|---|---|---|---|---|
-                    1 | # | # | # | # | # | 
-                    --|---|---|---|---|---|
-                    . |
-                    -> A martiz recebe o valor correspondente ao espaco em branco e k e decrementado para o valor original
-                    -> count_padding e decrementado para 0 e assim encerra o laco com o seguinte resultado:
-                      | 0 | 1 | 2 | 3 | 4 |...|
-                    --|---|---|---|---|---|
-                    0 | # |   |   |   | # |
-                    --|---|---|---|---|---|
-                    1 | # | # | # | # | # | 
-                    --|---|---|---|---|---|
-                    . |
-                   -> Note que se PADDING for definido como 0, esse loop sera ignorado, gerando mapas com tuneis de tamanho padrao.
-                 */
             }
             count_padding = PADDING; //Reatribui a variavel count_padding ao valor do padding.
             steps--; //decrementa a quantidade de passos para realizar uma nova operacao
