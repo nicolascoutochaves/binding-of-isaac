@@ -45,7 +45,7 @@ void novo_jogo(char *state){
                 WaitTime(0.2);
             }
             movimentar(&player.x, &player.y, map);
-            DrawRectangle(player.x, player.y, LADO_QUADRADO, LADO_QUADRADO, GREEN);
+            DrawRectangle(player.x, player.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
             //novo_jogo(&x, &y, map);
             BeginDrawing();//Inicia o ambiente de desenho na tela
             ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo
