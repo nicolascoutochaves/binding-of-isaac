@@ -10,9 +10,9 @@ Esse algoritmo pega um ponto aleatorio ou nao do mapa e comeca a gerar caminhos 
 //Funcao booleana que verifica se o tunel deve se mover em determinada direcao para evitar que as paredes sejam removidas ou ocorra problemas de acesso de posicoes inexistentes na matriz:
 int canGenerate(int i, int j, int dx, int dy, int width, int height) {
     int generate = 1;
-    if( (i == (MAP_HEIGHT-2) && dy == 1) || (i == 1 && dy == -1))
+    if( (i == (height-3) && dy == 1) || (i == 2 && dy == -1))
         generate = 0;
-    if( (j == (width-2) && dx == 1) || (j == 1 && dx == -1))
+    if( (j == (width-3) && dx == 1) || (j == 2 && dx == -1))
         generate = 0;
     return generate;
 }
@@ -30,8 +30,8 @@ void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
     Dessa forma garantimos que sempre havera um caminho livre ate o portal.
     Para iniciar em uma posicao aleatoria, utilize o trecho comentado abaixo:*/
 
-    i = 1; //1 + (rand() % MAP_HEIGHT-3);
-    j = MAP_WIDTH - 2; //1 + (rand() % MAP_WIDTH-3);
+    i = 2; //1 + (rand() % MAP_HEIGHT-3);
+    j = MAP_WIDTH - 3; //1 + (rand() % MAP_WIDTH-3);
     m[i][j] = 1;
 
     //laco principal da geracao dos tuneis
@@ -43,7 +43,7 @@ void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
         }
         //quando s == 1, assume a direcao x.
         if(s == 1) {
-            
+
             //Define o sentido do movimento no eixo x: este laco faz com que sempre seja adotado um sentido
             while(dx == 0)
                 dx = (rand() % 3) - 1;
@@ -54,7 +54,7 @@ void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
         }
         //Define a quantidade de passos que deve dar no sentido e direcao atuais:
             while(steps == 0)
-                steps = (rand() % (MAP_WIDTH-2)) ;
+                steps = (rand() % (MAP_WIDTH-3)) ;
 
         //laco que insere os tuneis na matriz enquanto a quantidade de passos sorteada e maior que 0
         while(steps > 0 && canGenerate(i,j,dx,dy,MAP_WIDTH,MAP_HEIGHT)) {
@@ -71,29 +71,31 @@ void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
             //laco que usa os valores de k e l para acrescentar um espacamento no tunel (PADDING)
             while(count_padding > 0) {
                 //Condicionais que verificam onde inserior os espacos extras, para evitar que seja inserido um espaco em locais proibidos:
+                if (s == 1){
+                    if(k + count_padding < (MAP_HEIGHT - 3)) {
+                        k += count_padding;
+                        m[k][j] = 1;
+                        k -= count_padding;
+                    }
 
-                if(k + count_padding < (MAP_HEIGHT - 2)) {
-                    k += count_padding;
-                    m[k][j] = 1;
-                    k -= count_padding;
+                    else if (k - count_padding > 1) {
+                        k -= count_padding;
+                        m[k][j] = 1;
+                        k += count_padding;
+                    }
                 }
+                else{
+                    if(l + count_padding < (MAP_WIDTH - 3)) {
+                        l += count_padding;
+                        m[i][l] = 1;
+                        l -= count_padding;
+                    }
 
-                else if (k - count_padding > 0) {
-                    k -= count_padding;
-                    m[k][j] = 1;
-                    k += count_padding;
-                }
-
-                if(l + count_padding < (MAP_WIDTH - 2)) {
-                    l += count_padding;
-                    m[i][l] = 1;
-                    l -= count_padding;
-                }
-
-                else if (l - count_padding > 0) {
-                    l -= count_padding;
-                    m[i][l] = 1;
-                    l += count_padding;
+                    else if (l - count_padding > 1) {
+                        l -= count_padding;
+                        m[i][l] = 1;
+                        l += count_padding;
+                    }
                 }
 
                 //aqui a variavel count_padding vai decrementando para que na proxima iteracao o padding seja adicionado numa posicao a mais ou a menos, dependendo da condicional
@@ -104,7 +106,7 @@ void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
             steps--; //decrementa a quantidade de passos para realizar uma nova operacao
         }
         s_ant = s; //define o sentido anterior
-        
+
         //Reseta as variaveis de controle para que um outro loop possa ser realizado:
         steps = 0;
         s = 0;
@@ -114,14 +116,14 @@ void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
         tunnels++;
     }
 
-    
+
 }
 
 void setSpawns(int m[MAP_HEIGHT][MAP_WIDTH], int difficulty, int current_map){
     int n_enemies = difficulty * current_map;
     if (n_enemies > 15) n_enemies = 15;
     int n_traps = difficulty * current_map;
-    
+
 }
 
 void printMap(int m[MAP_HEIGHT][MAP_WIDTH]){

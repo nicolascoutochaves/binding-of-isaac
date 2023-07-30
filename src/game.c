@@ -1,5 +1,5 @@
-#include "movimentacao.c"  
-#include <ctype.h> 
+#include "movimentacao.c"
+#include <ctype.h>
 
 typedef struct Entidades{
     int x; //posicao x
@@ -8,26 +8,32 @@ typedef struct Entidades{
     int pontuacao;
 } Entidade; //Struct usada para criar novas "entidades" como jogadores e inimigos.
 
+
+typedef struct Player{
+    struct Entidades;
+} Player;
+
 void novo_jogo(char *state){
     *state = '\0';
     WaitTime(0.2);
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
+
     generateMap(map);
-    Entidade player;
+    Player player;
 
     while(*state != 'n' && *state != 'q'){
-        int difficulty = 2;   
+        int difficulty = 2;
         int i, j;
 
-        player.x = (MAP_WIDTH * FATORX -(3*FATORX) )- LADO;
+        player.x = (MAP_WIDTH * FATORX -(3*FATORX) )- LADOX;
         player.y = 3*FATORY;
-      
+
         while (!WindowShouldClose() && *state != 'q'){
             //Desenha o mapa na tela:
-            for(i = 0; i < MAP_HEIGHT; i++){
+            for(i = 0; i < (MAP_HEIGHT); i++){
                 for(j = 0; j < MAP_WIDTH; j++){
                     if(map[i][j] == 0){
-                        DrawRectangle(j*FATORX, i*FATORY, LADO, LADO, RED);
+                        DrawRectangle(j*FATORX, i*FATORY, LADOX, LADOY, RED);
                     }
                 }
              }
@@ -47,7 +53,7 @@ void novo_jogo(char *state){
         }
         CloseWindow();// Fecha a janela e o contexto OpenGL
     }
-            
+
 }
 
 
@@ -78,7 +84,7 @@ void sair_jogo(char *state){
             salvar_jogo(state);
             *state = 'q';
         } else if (IsKeyPressed(KEY_N)){
-            *state = 'q';   
+            *state = 'q';
         }
         EndDrawing();
     }
@@ -89,11 +95,11 @@ void voltar_jogo(char *state){
 }//
 
 
-void menu(char *state, int were_played){
-        while(*state == '\0'||*state == 'e'){    
+void menu(char *state, int were_played){ //Menu do jogo
+        while(*state == '\0'||*state == 'e'){
             BeginDrawing();
             ClearBackground(RAYWHITE);
-            DrawText("Solecione uma opcao:", LARGURA/4, 100, 40, BLACK);
+            DrawText("Solecione \numa opcao:", LARGURA/4, 100, 40, BLACK);
             DrawText("N: novo jogo", LARGURA/4, 250, 40, BLACK);
             DrawText("C: carregar jogo", LARGURA/4, 300, 40, BLACK);
             if(were_played) DrawText("S: salvar jogo", LARGURA/4, 350, 40, BLACK);
@@ -102,13 +108,13 @@ void menu(char *state, int were_played){
 
             if(IsKeyPressed(KEY_N)){
                 were_played = 1;
-                *state = 'n'; 
+                *state = 'n';
                 novo_jogo(state);
             }
             if(IsKeyPressed(KEY_C)){
                 *state = 'c';
                 carregar_jogo(state);
-            }     
+            }
             if(IsKeyPressed(KEY_S) && were_played){
                 *state = 's';
                 salvar_jogo(state);
@@ -120,23 +126,23 @@ void menu(char *state, int were_played){
             if(IsKeyPressed(KEY_V) && were_played){
                 *state = 'v';
             }
-            
+
             EndDrawing();
         }
 }
 
 
 int main(void){ //
-    char state = '\0';
-    
+    char state = '\0'; //Estados do jogo
+
 
     InitWindow(LARGURA, ALTURA, "JOGO");
     SetTargetFPS(60);
     SetExitKey(KEY_NULL);//remove a opcao de sair do jogo
- 
+
         while(state == '\0' || state == 'e')
         menu(&state, 0);
-      
+
 
     return 0;
 }
