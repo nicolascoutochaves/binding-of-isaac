@@ -99,7 +99,10 @@ void menu(char *state, int were_played){ //Menu do jogo
         while(*state == '\0'||*state == 'e'){
             BeginDrawing();
             ClearBackground(RAYWHITE);
-            DrawText("Solecione \numa opcao:", LARGURA/4, 100, 40, BLACK);
+
+
+            DrawText("Selecione uma opcao:", LARGURA/4, 100, 40, BLACK);
+
             DrawText("N: novo jogo", LARGURA/4, 250, 40, BLACK);
             DrawText("C: carregar jogo", LARGURA/4, 300, 40, BLACK);
             if(were_played) DrawText("S: salvar jogo", LARGURA/4, 350, 40, BLACK);
