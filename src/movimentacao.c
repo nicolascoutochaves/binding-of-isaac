@@ -45,24 +45,24 @@ void move(int dx, int dy, int *x, int *y){
     }
 }
 
-void movimentar(int *x, int *y, int map[MAP_HEIGHT][MAP_WIDTH])
+void redefineDeslocamento(int *dx, int *dy){
+    *dx = 0;
+    *dy = 0;
+
+    while (*dx == 0 && *dy == 0){
+        *dx = 1 - (rand() % 3);
+        *dy = 1 - (rand() % 3);
+    }      
+    ////
+}
+
+int movimentar(int *x, int *y, int *dx, int *dy, int map[MAP_HEIGHT][MAP_WIDTH])
 {
-    int dx = 0, dy = 0;
-
-    //Define as direcoes dx e dy:
-    if (IsKeyDown(KEY_D))
-        dx = 1;
-    if (IsKeyDown(KEY_A))
-        dx = -1;
-    if (IsKeyDown(KEY_W))
-        dy = 1;
-    if (IsKeyDown(KEY_S))
-        dy = -1;
-
-    if(deveMover(map, *x, *y, dx, dy, FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY))
-        move(dx, dy, x, y);
-
+    if(deveMover(map, *x, *y, *dx, *dy, FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY))
+        move(*dx, *dy, x, y);
     //reseta as direcoes para que o movimento nao fique infinito e para que quando o quadrado encoste na parede em dx ele ainda possa se mover em dy e vice versa:
-    dx = 0;
-    dy = 0;
+    *dx = 0;
+    *dy = 0;
+
+    return deveMover(map, *x, *y, *dx, *dy, FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY);
 }

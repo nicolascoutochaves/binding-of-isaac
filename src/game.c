@@ -1,32 +1,74 @@
 #include "movimentacao.c"
 #include <ctype.h>
-
 typedef struct Entidades{
-    int x; //posicao x
-    int y; //posicao y
+    int x, y; //posicao x e y
+    int dx, dy; //direcoes
     int vida;
-    int pontuacao;
-} Entidade; //Struct usada para criar novas "entidades" como jogadores e inimigos.
+}Entidade; //Struct usada para criar novas "entidades" como jogadores e inimigos.
 
 
 typedef struct Player{
-    struct Entidades;
+    Entidade ent;
+    int pontuacao;
+
 } Player;
 
 void novo_jogo(char *state){
     *state = '\0';
-    WaitTime(0.2);
+    //WaitTime(0.2);
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
+    int difficulty = 10;
+    int atual_map = 2;
+    int n_inimigos = 1 + (difficulty * atual_map);
+    int temporizador = 0;
+    if (n_inimigos > MAX_INIMIGOS) n_inimigos = MAX_INIMIGOS;
 
     generateMap(map);
-    Player player;
+    Player player = {0};
+    Entidade inimigo[n_inimigos];
 
     while(*state != 'n' && *state != 'q'){
-        int difficulty = 2;
+        
         int i, j;
+        int x = 2, y = 2;
+        for(i = 0; i < n_inimigos; i++){
+            //Spawn dos Inimigos
+            while(map[y/FATORY][x/FATORX] == 0 ||
+                  map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
+                  map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
+                  map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
+                x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
+                y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
+            }
+            inimigo[i].x = x;
+            inimigo[i].y = y;
 
-        player.x = (MAP_WIDTH * FATORX -(3*FATORX) )- LADOX;
-        player.y = 3*FATORY;
+            //Aqui poderiamos futuramente implementar uma opçao para os inimigos nao spawnarem juntos
+            /* while(x == inimigo[i-1].x || x+LADOX+1 == inimigo[i-1].x){
+                x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
+                inimigo[i].x = x;
+            }
+            while(y == inimigo[i-1].y || y+LADOY+1 == inimigo[i-1].y){
+                y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
+                inimigo[i].y = y;
+            } */
+
+            x = 2;
+            y = 2;
+            redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+        }
+            //Spawn do jogador
+         
+        while(map[y/FATORY][x/FATORX] == 0 ||
+                  map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
+                  map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
+                  map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
+                x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
+                y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
+            }
+
+             player.ent.x = (int)x;
+             player.ent.y = (int)y;
 
         while (!WindowShouldClose() && *state != 'q'){
             //Desenha o mapa na tela:
@@ -37,16 +79,43 @@ void novo_jogo(char *state){
                     }
                 }
              }
-
-            //Verifica se o jogador nao apertou ESC
+            //                  JOGADOR:
+            //Verifica se o usuario apertou ESC
             if(IsKeyPressed(KEY_ESCAPE)){
                 *state = 'e';
                 menu(state, 1);
-                WaitTime(0.2);
+                //  Time(0.2);
             }
-            movimentar(&player.x, &player.y, map);
-            DrawRectangle(player.x, player.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
-            //novo_jogo(&x, &y, map);
+            //Define as direcoes dx e dy do jogador:
+            if (IsKeyDown(KEY_D))
+                player.ent.dx = 1;
+            if (IsKeyDown(KEY_A))
+                player.ent.dx = -1;
+            if (IsKeyDown(KEY_W))
+                player.ent.dy = 1;
+            if (IsKeyDown(KEY_S))
+                player.ent.dy = -1;
+            movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
+
+            temporizador++;
+            //if(temporizador > GetFrameTime()*60){
+                for(i = 0; i < n_inimigos; i++){
+                    if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
+                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+                }
+                temporizador = 0;
+            //}
+            DrawRectangle(player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
+            
+
+            //              Inimigos
+            
+            for(i = 0; i < n_inimigos; i++) {
+            DrawRectangle(inimigo[i].x, inimigo[i].y, LADOX, LADOY, BLUE);
+            }
+
+            //temporizador++;
+
             BeginDrawing();//Inicia o ambiente de desenho na tela
             ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo
             EndDrawing();//Finaliza o ambiente de desenho na tela
@@ -92,7 +161,7 @@ void sair_jogo(char *state){
 
 void voltar_jogo(char *state){
     *state = '\0';
-}//
+}
 
 
 void menu(char *state, int were_played){ //Menu do jogo
