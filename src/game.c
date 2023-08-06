@@ -37,8 +37,8 @@ void novo_jogo(char *state){
                   map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
-                x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
-                y = rand() % ((ALTURA-LADOY)/FATORY/2)*LADOY;
+                x = rand() % ((LARGURA_MAPA-LADOX)/FATORX)*LADOX;
+                y = rand() % ((ALTURA_MAPA-LADOY)/FATORY/2)*LADOY;
             }
             inimigo[i].x = x;
             inimigo[i].y = y;
@@ -67,16 +67,19 @@ void novo_jogo(char *state){
                 map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
                 map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0
              ){
-                x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
-                y = (ALTURA - LADOY) - rand() % ((ALTURA/2/FATORY))*LADOY;
+                x = rand() % ((LARGURA_MAPA-LADOX)/FATORX)*LADOX;
+                y = (ALTURA_MAPA - LADOY) - rand() % ((ALTURA_MAPA/2/FATORY))*LADOY;
             }
 
              player.ent.x = x;
              player.ent.y = y;
 
         while (!WindowShouldClose() && *state != 'q'){
+
+
+            
             //Desenha o mapa na tela:
-            for(i = 0; i < (MAP_HEIGHT); i++){
+            for(i = 0; i < MAP_HEIGHT; i++){
                 for(j = 0; j < MAP_WIDTH; j++){
                     if(map[i][j] == 0){
                         DrawRectangle(j*FATORX, i*FATORY, LADOX, LADOY, RED);
@@ -112,7 +115,7 @@ void novo_jogo(char *state){
             }
 
             temporizador++;
-            if(temporizador > GetFrameTime()*45){
+            if(temporizador > GetFrameTime()*50){
                 for(i = 0; i < n_inimigos; i++){
                     if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
                         redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
@@ -140,8 +143,8 @@ void salvar_jogo(char *state){
     while(*state == 's'){
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        DrawText("Jogo salvo com sucesso!", LARGURA/4, ALTURA/2, 40, BLACK);
-        DrawText("Aperte ESC para continuar", LARGURA/4 + 20, ALTURA/2 + 100, 30, BLACK);
+        DrawText("Jogo salvo com sucesso!", LARGURA/2, ALTURA/2, 40, BLACK);
+        DrawText("Aperte ESC para continuar", LARGURA/2 + 20, ALTURA/2 + 100, 30, BLACK);
         if(IsKeyPressed(KEY_ESCAPE)) *state = '\0';
         EndDrawing();
     }
@@ -153,7 +156,7 @@ void sair_jogo(char *state){
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        DrawText("Deseja salvar o jogo? (S/N)", LARGURA/4, ALTURA/2, 40, BLACK);
+        DrawText("Deseja salvar o jogo? (S/N)", LARGURA/2, ALTURA/2, 40, BLACK);
 
         if(IsKeyPressed(KEY_S)){
             salvar_jogo(state);
@@ -176,13 +179,13 @@ void menu(char *state, int were_played){ //Menu do jogo
             ClearBackground(RAYWHITE);
 
 
-            DrawText("Selecione uma opcao:", LARGURA/4, 100, 40, BLACK);
+            DrawText("Selecione uma opcao:", LARGURA/2, 100, 40, BLACK);
 
-            DrawText("N: novo jogo", LARGURA/4, 250, 40, BLACK);
-            DrawText("C: carregar jogo", LARGURA/4, 300, 40, BLACK);
+            DrawText("N: novo jogo", LARGURA/2, 250, 40, BLACK);
+            DrawText("C: carregar jogo", LARGURA/2, 300, 40, BLACK);
             if(were_played) DrawText("S: salvar jogo", LARGURA/4, 350, 40, BLACK);
-            DrawText("Q: sair do jogo", LARGURA/4, 400, 40, BLACK);
-            if(were_played) DrawText("V: voltar ao jogo", LARGURA/4, 450, 40, BLACK);
+            DrawText("Q: sair do jogo", LARGURA/2, 400, 40, BLACK);
+            if(were_played) DrawText("V: voltar ao jogo", LARGURA/2, 450, 40, BLACK);
 
             if(IsKeyPressed(KEY_N)){
                 were_played = 1;
@@ -204,7 +207,6 @@ void menu(char *state, int were_played){ //Menu do jogo
             if(IsKeyPressed(KEY_V) && were_played){
                 *state = 'v';
             }
-
             EndDrawing();
         }
 }
@@ -212,7 +214,6 @@ void menu(char *state, int were_played){ //Menu do jogo
 
 int main(void){ //
     char state = '\0'; //Estados do jogo
-
 
     InitWindow(LARGURA, ALTURA, "JOGO");
     SetTargetFPS(60);
