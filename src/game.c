@@ -17,8 +17,8 @@ void novo_jogo(char *state){
     *state = '\0';
     //WaitTime(0.2);
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
-    int difficulty = 10;
-    int atual_map = 2;
+    int difficulty = 1;
+    int atual_map = 1;
     int n_inimigos = 1 + (difficulty * atual_map);
     int temporizador = 0;
     if (n_inimigos > MAX_INIMIGOS) n_inimigos = MAX_INIMIGOS;
@@ -38,7 +38,7 @@ void novo_jogo(char *state){
                   map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
                 x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
-                y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
+                y = rand() % ((ALTURA-LADOY)/FATORY/2)*LADOY;
             }
             inimigo[i].x = x;
             inimigo[i].y = y;
@@ -55,20 +55,24 @@ void novo_jogo(char *state){
 
             x = 2;
             y = 2;
-            redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+            //redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+            inimigo[i].dx = 1;
+            inimigo[i].dy = 0;
         }
             //Spawn do jogador
          
-        while(map[y/FATORY][x/FATORX] == 0 ||
-                  map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
-                  map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
-                  map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
+        while(
+                map[y/FATORY][x/FATORX] == 0 ||
+                map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
+                map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
+                map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0
+             ){
                 x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
-                y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
+                y = (ALTURA - LADOY) - rand() % ((ALTURA/2/FATORY))*LADOY;
             }
 
-             player.ent.x = (int)x;
-             player.ent.y = (int)y;
+             player.ent.x = x;
+             player.ent.y = y;
 
         while (!WindowShouldClose() && *state != 'q'){
             //Desenha o mapa na tela:
@@ -84,7 +88,7 @@ void novo_jogo(char *state){
             if(IsKeyPressed(KEY_ESCAPE)){
                 *state = 'e';
                 menu(state, 1);
-                //  Time(0.2);
+                WaitTime(0.2);
             }
             //Define as direcoes dx e dy do jogador:
             if (IsKeyDown(KEY_D))
@@ -95,18 +99,11 @@ void novo_jogo(char *state){
                 player.ent.dy = 1;
             if (IsKeyDown(KEY_S))
                 player.ent.dy = -1;
-            movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
 
-            temporizador++;
-            //if(temporizador > GetFrameTime()*60){
-                for(i = 0; i < n_inimigos; i++){
-                    if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
-                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
-                }
-                temporizador = 0;
-            //}
             DrawRectangle(player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
-            
+            movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
+            player.ent.dx = 0;
+            player.ent.dy = 0;
 
             //              Inimigos
             
@@ -114,7 +111,16 @@ void novo_jogo(char *state){
             DrawRectangle(inimigo[i].x, inimigo[i].y, LADOX, LADOY, BLUE);
             }
 
-            //temporizador++;
+            temporizador++;
+            if(temporizador > GetFrameTime()*45){
+                for(i = 0; i < n_inimigos; i++){
+                    if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
+                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+                        
+                }
+                temporizador = 0;
+            }
+
 
             BeginDrawing();//Inicia o ambiente de desenho na tela
             ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo

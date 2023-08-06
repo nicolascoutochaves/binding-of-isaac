@@ -31,16 +31,16 @@ int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy, int fa
 }
 
 void move(int dx, int dy, int *x, int *y){
-    if(dx > 0){
+    if(dx == 1){
         *x += VELOCIDADE*FATORX/4; //Move para direita
     }
-    if(dx < 0){
+    if(dx == -1){
         *x -= VELOCIDADE*FATORX/4; //Move para esquerda
     }
-    if(dy > 0){
+    if(dy == 1){
         *y -= VELOCIDADE*FATORY/4; //Move para cima
     }
-    if(dy < 0){
+    if(dy == -1){
         *y += VELOCIDADE*FATORY/4; //Move para baixo
     }
 }
@@ -58,11 +58,14 @@ void redefineDeslocamento(int *dx, int *dy){
 
 int movimentar(int *x, int *y, int *dx, int *dy, int map[MAP_HEIGHT][MAP_WIDTH])
 {
-    if(deveMover(map, *x, *y, *dx, *dy, FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY))
+    int moveu = 0; 
+    
+    if(deveMover(map, *x, *y, *dx, *dy, FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY)){
         move(*dx, *dy, x, y);
-    //reseta as direcoes para que o movimento nao fique infinito e para que quando o quadrado encoste na parede em dx ele ainda possa se mover em dy e vice versa:
-    *dx = 0;
-    *dy = 0;
+        moveu = 1;
+    }
+    //reseta as direcoes para que o movimento nao fique infinito e para que quando o quadrado encoste na parede com dx, ele ainda possa se mover com dy e vice versa:
+    
 
-    return deveMover(map, *x, *y, *dx, *dy, FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY);
+    return moveu;
 }
