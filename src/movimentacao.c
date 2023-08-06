@@ -19,6 +19,7 @@ int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy, int fa
         (m[(y+ladoy-1)/fatory][(x+ladox)/fatorx] == 0 && dx == 1)||
         (m[(y+ladoy-1)/fatory][((x-ladox/6)/fatorx)] == 0 && dx == -1)) deve_mover = 0;
 
+    
 
     if(
         (m[(y-ladoy/6)/fatory][(x)/fatorx] == 0 && dy == 1)||

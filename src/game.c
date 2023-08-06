@@ -1,6 +1,7 @@
 #include "movimentacao.c"
 #include <ctype.h>
 typedef struct Entidades{
+    Rectangle rec;
     int x, y; //posicao x e y
     int dx, dy; //direcoes
     int vida;
@@ -10,6 +11,7 @@ typedef struct Entidades{
 typedef struct Player{
     Entidade ent;
     int pontuacao;
+    
 
 } Player;
 
@@ -17,7 +19,7 @@ void novo_jogo(char *state){
     *state = '\0';
     //WaitTime(0.2);
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
-    int difficulty = 1;
+    int difficulty = 100;
     int atual_map = 1;
     int n_inimigos = 1 + (difficulty * atual_map);
     int temporizador = 0;
@@ -43,7 +45,7 @@ void novo_jogo(char *state){
             inimigo[i].x = x;
             inimigo[i].y = y;
 
-            //Aqui poderiamos futuramente implementar uma opçao para os inimigos nao spawnarem juntos
+            //Aqui poderiamos futuramente implementar uma opçao para os inimigos nao spawnarem juntos na mesma posicao
             /* while(x == inimigo[i-1].x || x+LADOX+1 == inimigo[i-1].x){
                 x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
                 inimigo[i].x = x;
@@ -55,9 +57,8 @@ void novo_jogo(char *state){
 
             x = 2;
             y = 2;
-            //redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
-            inimigo[i].dx = 1;
-            inimigo[i].dy = 0;
+            redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+        
         }
             //Spawn do jogador
          
@@ -123,7 +124,14 @@ void novo_jogo(char *state){
                 }
                 temporizador = 0;
             }
-
+            for(i = 0; i < n_inimigos; i++){
+                if(CheckCollisionRecs(
+                    (Rectangle){player.ent.x, player.ent.y, LADOX, LADOY},
+                    (Rectangle){inimigo[i].x, inimigo[i].y, LADOX, LADOY})) {
+                        DrawText("Colisao!", LARGURA/2, ALTURA/2, 40, BLUE);
+                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+                    }
+            }
 
             BeginDrawing();//Inicia o ambiente de desenho na tela
             ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo
