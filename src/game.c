@@ -11,7 +11,7 @@
 
 
 //Dimensoes que o mapa tera quando desenhado
-#define LARGURA_MAPA 1200 
+#define LARGURA_MAPA 1200
 #define ALTURA_MAPA 600
 
 /////////////////////////////////////////////////////////
@@ -30,7 +30,7 @@
 #define VELOCIDADE FATORX/4
 #define MAX_INIMIGOS 15
 
-
+Texture2D spritesheet;
 
 typedef struct Entidades{ // Entidades means enemys or players
     int x, y; //posicao x e y
@@ -43,7 +43,6 @@ typedef struct Player{
     Entidade ent;
     int pontuacao;
 } Player;
-
 
 //Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
 void menu(char *state, int were_played);
@@ -59,7 +58,7 @@ int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy, int fa
         (m[(y+ladoy-1)/fatory][(x+ladox)/fatorx] == 0 && dx == 1)||
         (m[(y+ladoy-1)/fatory][((x-ladox/6)/fatorx)] == 0 && dx == -1)) deve_mover = 0;
 
-    
+
 
     if(
         (m[(y-ladoy/6)/fatory][(x)/fatorx] == 0 && dy == 1)||
@@ -93,24 +92,47 @@ void redefineDeslocamento(int *dx, int *dy){
     while (*dx == 0 && *dy == 0){
         *dx = 1 - (rand() % 3);
         *dy = 1 - (rand() % 3);
-    }      
-    
+    }
+
 }
 
 int movimentar(int *x, int *y, int *dx, int *dy, int map[MAP_HEIGHT][MAP_WIDTH])
 {
-    
-    int moveu = 0; 
-    
+
+    int moveu = 0;
+
     if(deveMover(map, *x, *y, *dx, *dy, FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY)){
         move(*dx, *dy, x, y);
         moveu = 1;
-   
-    }    
+
+    }
 
     return moveu;
 }
 
+void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH]){
+
+    if( ((player.ent.x) > (inimigo->x)) &&
+       deveMover(map, inimigo->x, inimigo->y, inimigo->dx, inimigo->dy,FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY ) ){
+        inimigo->x += VELOCIDADE/2;
+    }
+
+    if( ((player.ent.x + LADO_QUADRADOX ) < (inimigo->x)) &&
+       deveMover(map, inimigo->x, inimigo->y, inimigo->dx, inimigo->dy,FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY ) ){
+        inimigo->x -= VELOCIDADE/2;
+    }
+
+    if( ((player.ent.y + LADO_QUADRADOY) < (inimigo->y)) &&
+       deveMover(map, inimigo->y, inimigo->y, inimigo->dy, inimigo->dy,FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY ) ){
+        inimigo->y -= VELOCIDADE/2;
+    }
+
+    if( ((player.ent.y) > (inimigo->y)) &&
+       deveMover(map, inimigo->y, inimigo->y, inimigo->dy, inimigo->dy,FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY ) ){
+        inimigo->y += VELOCIDADE/2;
+    }
+
+}
 
 void novo_jogo(char *state){
     *state = '\0';
@@ -118,9 +140,9 @@ void novo_jogo(char *state){
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
     int difficulty = 1;
     int atual_map = 1;
-    int n_inimigos = 1 + (difficulty * atual_map);   
+    int n_inimigos = 1 + (difficulty * atual_map);
     if (n_inimigos > MAX_INIMIGOS) n_inimigos = MAX_INIMIGOS;
-  
+
     generateMap(map);
     Player player = {0};
     Entidade inimigo[n_inimigos];
@@ -199,46 +221,53 @@ void novo_jogo(char *state){
 
 
             movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
-            DrawRectangle(player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);            
-          
-              
+            DrawRectangle(player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
+
+
             //              Inimigos
-            
+
             for(i = 0; i < n_inimigos; i++) {
             DrawRectangle(inimigo[i].x, inimigo[i].y, LADOX, LADOY, BLUE);
             }
 
-            
-            
+
+
              for(i = 0; i < n_inimigos; i++){
-                 if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
+
+                if((sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow( (player.ent.y - inimigo[i].y), 2)) ) < 15*FATORX){
+                    DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
+
+                    persegue(player, &inimigo[i], map);
+                }else if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
                      redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
              }
-                
-            
+
+
 
             //Colisao com o Jogador:
             for(i = 0; i < n_inimigos; i++){
                 if(CheckCollisionRecs(
                     (Rectangle){player.ent.x, player.ent.y, LADOX, LADOY},
                     (Rectangle){inimigo[i].x, inimigo[i].y, LADOX, LADOY})) {
-                            
+
                         player.ent.x -= VELOCIDADE*player.ent.dx;
                         player.ent.y += VELOCIDADE*player.ent.dy;
 
                         inimigo[i].x -= VELOCIDADE*inimigo[i].dx;
                         inimigo[i].y += VELOCIDADE*inimigo[i].dy;
-                        
+
                 }
 
-                if((sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow( (player.ent.y - inimigo[i].y), 2)) ) < 15*FATORX){ 
+                if((sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow( (player.ent.y - inimigo[i].y), 2)) ) < 15*FATORX){
                     DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
+
+                    persegue(player, &inimigo[i], map);
                 }
             }
 
-            
-            
-           
+
+
+
             player.ent.dx = 0;
             player.ent.dy = 0;
 
@@ -266,7 +295,7 @@ void salvar_jogo(char *state){
 
         strcpy(text, "Aperte ESC para continuar");
         DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, ALTURA/2 - FONT_SIZE + 50, FONT_SIZE, BLACK);
-        
+
 
         if(IsKeyPressed(KEY_ESCAPE)) *state = '\0';
         EndDrawing();
@@ -321,7 +350,7 @@ void menu(char *state, int were_played){ //Menu do jogo
             DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, 400, FONT_SIZE, BLACK);
 
             if(were_played) {
-                strcpy(text,  "S: salvar jogo");      
+                strcpy(text,  "S: salvar jogo");
                 DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, 350, FONT_SIZE, BLACK);
 
                 strcpy(text, "V: voltar ao jogo");
