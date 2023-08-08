@@ -3,14 +3,14 @@
 #include <string.h>
 #include <ctype.h>
 
-#define LARGURA GetScreenWidth()
-#define ALTURA GetScreenHeight()
+#define LARGURA GetScreenWidth() //Largura da tela
+#define ALTURA GetScreenHeight() //Altura da tela
 
 #define FONT_SIZE 40
 
 
-//Dimensoes do mapa (no contexto do opengl)
-#define LARGURA_MAPA 1200
+//Dimensoes que o mapa tera quando desenhado
+#define LARGURA_MAPA 1200 
 #define ALTURA_MAPA 600
 
 /////////////////////////////////////////////////////////
@@ -136,8 +136,8 @@ void novo_jogo(char *state){
                   map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
-                x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
-                y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
+                x = rand() % ((LARGURA_MAPA-LADOX)/FATORX)*LADOX;
+                y = rand() % ((ALTURA_MAPA-LADOY)/FATORX/2)*LADOY;
             }
             inimigo[i].x = x;
             inimigo[i].y = y;
@@ -162,8 +162,8 @@ void novo_jogo(char *state){
                   map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
-                x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
-                y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
+                x = rand() % ((LARGURA_MAPA-LADOX)/FATORX)*LADOX;
+                y = rand() % ((ALTURA_MAPA-LADOY)/FATORX/2)*LADOY;
             }
 
              player.ent.x = (int)x;
@@ -243,6 +243,7 @@ void novo_jogo(char *state){
         }
         CloseWindow();// Fecha a janela e o contexto OpenGL
     }
+}
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void carregar_jogo(char *state){

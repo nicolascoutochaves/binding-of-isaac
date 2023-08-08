@@ -4,12 +4,12 @@ Esse algoritmo pega um ponto aleatorio ou nao do mapa e comeca a gerar caminhos 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "../include/game.h"
+
 
 //////////////////////////////////////////////////////
 //              Geracao do mapa:
 
-//Dimensoes do mapa (referente a matriz)
+//Dimensoes logicas do mapa (referente a matriz do mapa, nao ao mapa desenhado pela raylib)
 #define MAP_WIDTH 60  //Largura do mapa
 #define MAP_HEIGHT 30  //Altura do mapa
 #define MAX_TUNNELS 60//Quantidate de tuneis que vai gerar
