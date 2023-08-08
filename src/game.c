@@ -1,5 +1,6 @@
 #include "map.c"
 #include "raylib.h"
+#include <math.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -115,11 +116,9 @@ void novo_jogo(char *state){
     *state = '\0';
     //WaitTime(0.2);
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
-
     int difficulty = 1;
     int atual_map = 1;
-    int n_inimigos = 1 + (difficulty * atual_map);
-    
+    int n_inimigos = 1 + (difficulty * atual_map);   
     if (n_inimigos > MAX_INIMIGOS) n_inimigos = MAX_INIMIGOS;
   
     generateMap(map);
@@ -163,11 +162,11 @@ void novo_jogo(char *state){
                   map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
                 x = rand() % ((LARGURA_MAPA-LADOX)/FATORX)*LADOX;
-                y = rand() % ((ALTURA_MAPA-LADOY)/FATORX/2)*LADOY;
+                y = ALTURA_MAPA - rand() % ((ALTURA_MAPA-LADOY)/FATORX/2)*LADOY; // Player spawna na metade de baixo do mapa
             }
 
-             player.ent.x = (int)x;
-             player.ent.y = (int)y;
+             player.ent.x = x;
+             player.ent.y = y;
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
         while (!WindowShouldClose() && *state != 'q'){
@@ -229,9 +228,15 @@ void novo_jogo(char *state){
 
                         inimigo[i].x -= VELOCIDADE*inimigo[i].dx;
                         inimigo[i].y += VELOCIDADE*inimigo[i].dy;
-                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+                        
+                }
+
+                if((sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow( (player.ent.y - inimigo[i].y), 2)) ) < 15*FATORX){ 
+                    DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
                 }
             }
+
+            
             
            
             player.ent.dx = 0;
