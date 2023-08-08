@@ -1,6 +1,36 @@
-#include "movimentacao.c"
-#include <ctype.h>
 #include "map.c"
+#include "raylib.h"
+#include <string.h>
+#include <ctype.h>
+
+#define LARGURA GetScreenWidth()
+#define ALTURA GetScreenHeight()
+
+#define FONT_SIZE 40
+
+
+//Dimensoes do mapa (no contexto do opengl)
+#define LARGURA_MAPA 1200
+#define ALTURA_MAPA 600
+
+/////////////////////////////////////////////////////////
+//              Fatores de Conversao:
+
+#define FATORX  (LARGURA_MAPA / MAP_WIDTH)
+#define FATORY  (ALTURA_MAPA / MAP_HEIGHT)
+#define LADOX FATORX //Espessura das paredes desenhadas pela raylib
+#define LADOY FATORY
+
+///////////////////////////////////////////////////////////
+//              Personagens:
+
+#define LADO_QUADRADOX FATORX
+#define LADO_QUADRADOY FATORY
+#define VELOCIDADE FATORX/4
+#define MAX_INIMIGOS 15
+
+
+
 typedef struct Entidades{ // Entidades means enemys or players
     int x, y; //posicao x e y
     int dx, dy; //direcoes
@@ -12,18 +42,86 @@ typedef struct Player{
     Entidade ent;
     int pontuacao;
 } Player;
-//--------------------------------------------------------------------------------------
-//--------------------------------------------------------------------------------------
+
+
+//Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
+void menu(char *state, int were_played);
+
+
+int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy, int fatorx, int fatory, int ladox, int ladoy){
+    int deve_mover = 1;
+
+    //verifica as posicoes nos quatro vertices do quadrado:
+    if(
+        (m[(y)/fatory][(x+ladox)/fatorx] == 0 && dx == 1)||
+        (m[(y)/fatory][((x-ladox/6)/fatorx)] == 0 && dx == -1)||
+        (m[(y+ladoy-1)/fatory][(x+ladox)/fatorx] == 0 && dx == 1)||
+        (m[(y+ladoy-1)/fatory][((x-ladox/6)/fatorx)] == 0 && dx == -1)) deve_mover = 0;
+
+    
+
+    if(
+        (m[(y-ladoy/6)/fatory][(x)/fatorx] == 0 && dy == 1)||
+        (m[(y+ladoy)/fatory][(x)/fatorx] == 0 && dy == -1)||
+        (m[(y-ladoy/6)/fatory][(x+ladox-1)/fatorx] == 0 && dy == 1)||
+        (m[(y+ladoy)/fatory][(x+ladox-1)/fatorx] == 0 && dy == -1)) deve_mover = 0;
+
+
+    return deve_mover;
+}
+
+void move(int dx, int dy, int *x, int *y){
+    if(dx == 1){
+        *x += VELOCIDADE; //Move para direita
+    }
+    if(dx == -1){
+        *x -= VELOCIDADE; //Move para esquerda
+    }
+    if(dy == 1){
+        *y -= VELOCIDADE; //Move para cima
+    }
+    if(dy == -1){
+        *y += VELOCIDADE; //Move para baixo
+    }
+}
+
+void redefineDeslocamento(int *dx, int *dy){
+    *dx = 0;
+    *dy = 0;
+
+    while (*dx == 0 && *dy == 0){
+        *dx = 1 - (rand() % 3);
+        *dy = 1 - (rand() % 3);
+    }      
+    
+}
+
+int movimentar(int *x, int *y, int *dx, int *dy, int map[MAP_HEIGHT][MAP_WIDTH])
+{
+    
+    int moveu = 0; 
+    
+    if(deveMover(map, *x, *y, *dx, *dy, FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY)){
+        move(*dx, *dy, x, y);
+        moveu = 1;
+   
+    }    
+
+    return moveu;
+}
+
+
 void novo_jogo(char *state){
     *state = '\0';
     //WaitTime(0.2);
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
-    int difficulty = 10;
-    int atual_map = 2;
-    int n_inimigos = 1 + (difficulty * atual_map);
-    int temporizador = 0;
-    if (n_inimigos > MAX_INIMIGOS) n_inimigos = MAX_INIMIGOS);
 
+    int difficulty = 1;
+    int atual_map = 1;
+    int n_inimigos = 1 + (difficulty * atual_map);
+    
+    if (n_inimigos > MAX_INIMIGOS) n_inimigos = MAX_INIMIGOS;
+  
     generateMap(map);
     Player player = {0};
     Entidade inimigo[n_inimigos];
@@ -73,6 +171,7 @@ void novo_jogo(char *state){
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
         while (!WindowShouldClose() && *state != 'q'){
+
             //Desenha o mapa na tela:
             for(i = 0; i < (MAP_HEIGHT); i++){
                 for(j = 0; j < MAP_WIDTH; j++){
@@ -97,26 +196,46 @@ void novo_jogo(char *state){
                 player.ent.dy = 1;
             if (IsKeyDown(KEY_S))
                 player.ent.dy = -1;
+
+
+
             movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
-
-            temporizador++;
-            //if(temporizador > GetFrameTime()*60){
-                for(i = 0; i < n_inimigos; i++){
-                    if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
-                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
-                }
-                temporizador = 0;
-            //}
-            DrawRectangle(player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
-
-//------------------------------------------------------------------------------------------------
-//----------------------Inimigos------------------------------------------------------------------
-
+            DrawRectangle(player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);            
+          
+              
+            //              Inimigos
+            
             for(i = 0; i < n_inimigos; i++) {
             DrawRectangle(inimigo[i].x, inimigo[i].y, LADOX, LADOY, BLUE);
             }
 
-            //temporizador++;
+            
+            
+             for(i = 0; i < n_inimigos; i++){
+                 if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
+                     redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+             }
+                
+            
+
+            //Colisao com o Jogador:
+            for(i = 0; i < n_inimigos; i++){
+                if(CheckCollisionRecs(
+                    (Rectangle){player.ent.x, player.ent.y, LADOX, LADOY},
+                    (Rectangle){inimigo[i].x, inimigo[i].y, LADOX, LADOY})) {
+                            
+                        player.ent.x -= VELOCIDADE*player.ent.dx;
+                        player.ent.y += VELOCIDADE*player.ent.dy;
+
+                        inimigo[i].x -= VELOCIDADE*inimigo[i].dx;
+                        inimigo[i].y += VELOCIDADE*inimigo[i].dy;
+                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+                }
+            }
+            
+           
+            player.ent.dx = 0;
+            player.ent.dy = 0;
 
             BeginDrawing();//Inicia o ambiente de desenho na tela
             ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo
@@ -132,11 +251,17 @@ void carregar_jogo(char *state){
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void salvar_jogo(char *state){
+    char text[50];
     while(*state == 's'){
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        DrawText("Jogo salvo com sucesso!", LARGURA/4, ALTURA/2, 40, BLACK);
-        DrawText("Aperte ESC para continuar", LARGURA/4 + 20, ALTURA/2 + 100, 30, BLACK);
+        strcpy(text, "Jogo salvo com sucesso!");
+        DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, ALTURA/2 - FONT_SIZE, FONT_SIZE, BLACK);
+
+        strcpy(text, "Aperte ESC para continuar");
+        DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, ALTURA/2 - FONT_SIZE + 50, FONT_SIZE, BLACK);
+        
+
         if(IsKeyPressed(KEY_ESCAPE)) *state = '\0';
         EndDrawing();
     }
@@ -145,11 +270,15 @@ void salvar_jogo(char *state){
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void sair_jogo(char *state){
+    char text[50];
     while(*state != 'q'){
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        DrawText("Deseja salvar o jogo? (S/N)", LARGURA/4, ALTURA/2, 40, BLACK);
+
+        strcpy(text, "Deseja salvar o jogo? (S/N)");
+        DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, ALTURA/2 - FONT_SIZE, FONT_SIZE, BLACK);
+
 
         if(IsKeyPressed(KEY_S)){
             salvar_jogo(state);
@@ -168,18 +297,30 @@ void voltar_jogo(char *state){
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void menu(char *state, int were_played){ //Menu do jogo
+        char text[50] = "";
         while(*state == '\0'||*state == 'e'){
             BeginDrawing();
             ClearBackground(RAYWHITE);
 
+            strcpy(text, "Selecione uma opcao:");
+            DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, 100, FONT_SIZE, BLACK);
 
-            DrawText("Selecione uma opcao:", LARGURA/4, 100, 40, BLACK);
+            strcpy(text, "N: novo jogo");
+            DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, 250, FONT_SIZE, BLACK);
 
-            DrawText("N: novo jogo", LARGURA/4, 250, 40, BLACK);
-            DrawText("C: carregar jogo", LARGURA/4, 300, 40, BLACK);
-            if(were_played) DrawText("S: salvar jogo", LARGURA/4, 350, 40, BLACK);
-            DrawText("Q: sair do jogo", LARGURA/4, 400, 40, BLACK);
-            if(were_played) DrawText("V: voltar ao jogo", LARGURA/4, 450, 40, BLACK);
+            strcpy(text, "C: carregar jogo");
+            DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, 300, FONT_SIZE, BLACK);
+
+            strcpy(text, "Q: sair do jogo");
+            DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, 400, FONT_SIZE, BLACK);
+
+            if(were_played) {
+                strcpy(text,  "S: salvar jogo");      
+                DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, 350, FONT_SIZE, BLACK);
+
+                strcpy(text, "V: voltar ao jogo");
+                DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE)/2, 450, FONT_SIZE, BLACK);
+            }
 
             if(IsKeyPressed(KEY_N)){
                 were_played = 1;
@@ -210,7 +351,7 @@ void menu(char *state, int were_played){ //Menu do jogo
 int main(void){ //
     char state = '\0'; //Estados do jogo
 
-    InitWindow(LARGURA, ALTURA, "JOGO");
+    InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
     SetTargetFPS(60);
     SetExitKey(KEY_NULL);//remove a opcao de sair do jogo
 
