@@ -1,36 +1,35 @@
 #include "movimentacao.c"
 #include <ctype.h>
-typedef struct Entidades{
-    Rectangle rec;
+#include "map.c"
+typedef struct Entidades{ // Entidades means enemys or players
     int x, y; //posicao x e y
     int dx, dy; //direcoes
     int vida;
 }Entidade; //Struct usada para criar novas "entidades" como jogadores e inimigos.
-
-
+//--------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------
 typedef struct Player{
     Entidade ent;
     int pontuacao;
-    
-
 } Player;
-
+//--------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------
 void novo_jogo(char *state){
     *state = '\0';
     //WaitTime(0.2);
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
-    int difficulty = 100;
-    int atual_map = 1;
+    int difficulty = 10;
+    int atual_map = 2;
     int n_inimigos = 1 + (difficulty * atual_map);
     int temporizador = 0;
-    if (n_inimigos > MAX_INIMIGOS) n_inimigos = MAX_INIMIGOS;
+    if (n_inimigos > MAX_INIMIGOS) n_inimigos = MAX_INIMIGOS);
 
     generateMap(map);
     Player player = {0};
     Entidade inimigo[n_inimigos];
 
     while(*state != 'n' && *state != 'q'){
-        
+
         int i, j;
         int x = 2, y = 2;
         for(i = 0; i < n_inimigos; i++){
@@ -39,13 +38,13 @@ void novo_jogo(char *state){
                   map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
                   map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
-                x = rand() % ((LARGURA_MAPA-LADOX)/FATORX)*LADOX;
-                y = rand() % ((ALTURA_MAPA-LADOY)/FATORY/2)*LADOY;
+                x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
+                y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
             }
             inimigo[i].x = x;
             inimigo[i].y = y;
 
-            //Aqui poderiamos futuramente implementar uma opçao para os inimigos nao spawnarem juntos na mesma posicao
+            //Aqui poderiamos futuramente implementar uma opçao para os inimigos nao spawnarem juntos
             /* while(x == inimigo[i-1].x || x+LADOX+1 == inimigo[i-1].x){
                 x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
                 inimigo[i].x = x;
@@ -58,29 +57,24 @@ void novo_jogo(char *state){
             x = 2;
             y = 2;
             redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
-        
         }
             //Spawn do jogador
-         
-        while(
-                map[y/FATORY][x/FATORX] == 0 ||
-                map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
-                map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
-                map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0
-             ){
-                x = rand() % ((LARGURA_MAPA-LADOX)/FATORX)*LADOX;
-                y = (ALTURA_MAPA - LADOY) - rand() % ((ALTURA_MAPA/2/FATORY))*LADOY;
+
+        while(map[y/FATORY][x/FATORX] == 0 ||
+                  map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
+                  map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
+                  map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
+                x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
+                y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
             }
 
-             player.ent.x = x;
-             player.ent.y = y;
-
+             player.ent.x = (int)x;
+             player.ent.y = (int)y;
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
         while (!WindowShouldClose() && *state != 'q'){
-
-
-            
             //Desenha o mapa na tela:
-            for(i = 0; i < MAP_HEIGHT; i++){
+            for(i = 0; i < (MAP_HEIGHT); i++){
                 for(j = 0; j < MAP_WIDTH; j++){
                     if(map[i][j] == 0){
                         DrawRectangle(j*FATORX, i*FATORY, LADOX, LADOY, RED);
@@ -92,7 +86,7 @@ void novo_jogo(char *state){
             if(IsKeyPressed(KEY_ESCAPE)){
                 *state = 'e';
                 menu(state, 1);
-                WaitTime(0.2);
+                //  Time(0.2);
             }
             //Define as direcoes dx e dy do jogador:
             if (IsKeyDown(KEY_D))
@@ -103,35 +97,26 @@ void novo_jogo(char *state){
                 player.ent.dy = 1;
             if (IsKeyDown(KEY_S))
                 player.ent.dy = -1;
-
-            DrawRectangle(player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
             movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
-            player.ent.dx = 0;
-            player.ent.dy = 0;
 
-            //              Inimigos
-            
+            temporizador++;
+            //if(temporizador > GetFrameTime()*60){
+                for(i = 0; i < n_inimigos; i++){
+                    if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
+                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+                }
+                temporizador = 0;
+            //}
+            DrawRectangle(player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
+
+//------------------------------------------------------------------------------------------------
+//----------------------Inimigos------------------------------------------------------------------
+
             for(i = 0; i < n_inimigos; i++) {
             DrawRectangle(inimigo[i].x, inimigo[i].y, LADOX, LADOY, BLUE);
             }
 
-            temporizador++;
-            if(temporizador > GetFrameTime()*50){
-                for(i = 0; i < n_inimigos; i++){
-                    if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
-                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
-                        
-                }
-                temporizador = 0;
-            }
-            for(i = 0; i < n_inimigos; i++){
-                if(CheckCollisionRecs(
-                    (Rectangle){player.ent.x, player.ent.y, LADOX, LADOY},
-                    (Rectangle){inimigo[i].x, inimigo[i].y, LADOX, LADOY})) {
-                        DrawText("Colisao!", LARGURA/2, ALTURA/2, 40, BLUE);
-                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
-                    }
-            }
+            //temporizador++;
 
             BeginDrawing();//Inicia o ambiente de desenho na tela
             ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo
@@ -139,32 +124,32 @@ void novo_jogo(char *state){
         }
         CloseWindow();// Fecha a janela e o contexto OpenGL
     }
-
-}
-
-
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
 void carregar_jogo(char *state){
     *state = '\0';
 }
-
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
 void salvar_jogo(char *state){
     while(*state == 's'){
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        DrawText("Jogo salvo com sucesso!", LARGURA/2, ALTURA/2, 40, BLACK);
-        DrawText("Aperte ESC para continuar", LARGURA/2 + 20, ALTURA/2 + 100, 30, BLACK);
+        DrawText("Jogo salvo com sucesso!", LARGURA/4, ALTURA/2, 40, BLACK);
+        DrawText("Aperte ESC para continuar", LARGURA/4 + 20, ALTURA/2 + 100, 30, BLACK);
         if(IsKeyPressed(KEY_ESCAPE)) *state = '\0';
         EndDrawing();
     }
     menu(state, 1);
 }
-
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
 void sair_jogo(char *state){
     while(*state != 'q'){
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        DrawText("Deseja salvar o jogo? (S/N)", LARGURA/2, ALTURA/2, 40, BLACK);
+        DrawText("Deseja salvar o jogo? (S/N)", LARGURA/4, ALTURA/2, 40, BLACK);
 
         if(IsKeyPressed(KEY_S)){
             salvar_jogo(state);
@@ -175,25 +160,26 @@ void sair_jogo(char *state){
         EndDrawing();
     }
 }
-
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
 void voltar_jogo(char *state){
     *state = '\0';
 }
-
-
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
 void menu(char *state, int were_played){ //Menu do jogo
         while(*state == '\0'||*state == 'e'){
             BeginDrawing();
             ClearBackground(RAYWHITE);
 
 
-            DrawText("Selecione uma opcao:", LARGURA/2, 100, 40, BLACK);
+            DrawText("Selecione uma opcao:", LARGURA/4, 100, 40, BLACK);
 
-            DrawText("N: novo jogo", LARGURA/2, 250, 40, BLACK);
-            DrawText("C: carregar jogo", LARGURA/2, 300, 40, BLACK);
+            DrawText("N: novo jogo", LARGURA/4, 250, 40, BLACK);
+            DrawText("C: carregar jogo", LARGURA/4, 300, 40, BLACK);
             if(were_played) DrawText("S: salvar jogo", LARGURA/4, 350, 40, BLACK);
-            DrawText("Q: sair do jogo", LARGURA/2, 400, 40, BLACK);
-            if(were_played) DrawText("V: voltar ao jogo", LARGURA/2, 450, 40, BLACK);
+            DrawText("Q: sair do jogo", LARGURA/4, 400, 40, BLACK);
+            if(were_played) DrawText("V: voltar ao jogo", LARGURA/4, 450, 40, BLACK);
 
             if(IsKeyPressed(KEY_N)){
                 were_played = 1;
@@ -215,11 +201,12 @@ void menu(char *state, int were_played){ //Menu do jogo
             if(IsKeyPressed(KEY_V) && were_played){
                 *state = 'v';
             }
+
             EndDrawing();
         }
 }
-
-
+//--------------------------------------------------------------------------------------
+//---Funcao Principal-------------------------------------------------------------------
 int main(void){ //
     char state = '\0'; //Estados do jogo
 
@@ -229,7 +216,6 @@ int main(void){ //
 
         while(state == '\0' || state == 'e')
         menu(&state, 0);
-
 
     return 0;
 }
