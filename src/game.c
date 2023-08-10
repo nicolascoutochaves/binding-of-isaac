@@ -34,6 +34,9 @@
 #define VELOCIDADE FATORX/4
 #define MAX_INIMIGOS 15
 
+//          Define o n maximo de mapas do modo normal:
+#define MAX_MAPS 9 //Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
+
 Texture2D spritesheet;
 
 
@@ -151,7 +154,7 @@ void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH]){
 
 }
 
-int current_map = 2; //variavel global por enquanto, pra nao precisar passar o mapa atual por referencia para a funcao.
+int current_map = 1; //variavel global por enquanto, pra nao precisar passar o mapa atual por referencia para a funcao.
 void novo_jogo(char *state){
 
     *state = '\0';
@@ -341,10 +344,8 @@ void novo_jogo(char *state){
             }
 
             
-            if(map[player.ent.y/FATORY][player.ent.x/FATORX] == 6){
+            if(map[player.ent.y/FATORY][player.ent.x/FATORX] == 6 || IsKeyPressed(KEY_SPACE)){
                 *state = 'n';
-                current_map++;
-                novo_jogo(state);
             }
 
     
@@ -355,6 +356,11 @@ void novo_jogo(char *state){
             BeginDrawing();//Inicia o ambiente de desenho na tela
             ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo
             EndDrawing();//Finaliza o ambiente de desenho na tela
+        }
+        if(*state == 'n'){
+            if(current_map < MAX_MAPS)
+                current_map++;
+            novo_jogo(state);
         }
         CloseWindow();// Fecha a janela e o contexto OpenGL
     
