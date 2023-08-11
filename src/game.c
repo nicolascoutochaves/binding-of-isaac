@@ -54,6 +54,19 @@ typedef struct Player{
     int pontuacao;
 } Player;
 
+typedef struct Portal{
+    float x;
+    float y;
+    float width;
+    float height;
+    bool active;
+
+} Portal;
+
+typedef struct Map{
+    Rectangle wall[MAP_HEIGHT*MAP_HEIGHT];
+    Portal portal;
+} Map;
 
 
 //Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
@@ -164,9 +177,12 @@ void novo_jogo(char *state){
     char c; //caracter do mapa
     int modo_jogo = 0; //0 e padrao, 1 e a geracao aleatoria
     int n_inimigos = 0;
-    int i, j;
+    int i, j, k = 0;
+    int  x = 0, y = 0;
     Player player = {0};
     Entidade inimigo[MAX_INIMIGOS];
+    Map Map;
+    Rectangle portal;
     
     if(modo_jogo) generateMap(map); //Se o modo de jogo for 1, gera o mapa e os spawns aleatoriamente, se nao, carrega os arquivos
     else{
@@ -207,10 +223,11 @@ void novo_jogo(char *state){
                                 break;
                             default: map[i][j] = 1; //Espaco vazio
 
-                        }
+                        } 
                         
                         fflush(maptxt);
                     }
+                
                 }
             }
 
@@ -219,7 +236,6 @@ void novo_jogo(char *state){
         }
     }
 
-    int x = 2, y = 2; //inicializa x e y em posicoes invalidas para que seja sempre sorteado uma posicao valida no loop abaixo
 
     if(modo_jogo){
 
@@ -269,21 +285,45 @@ void novo_jogo(char *state){
 
     redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
 
-
-
+    k = 0;
+    for(i = 0; i < MAP_HEIGHT; i++){
+        for(j = 0; j < MAP_WIDTH; j++){
+            x = j*FATORX+MARGIN_LEFT;
+            y = i*FATORY+MARGIN_TOP;
+            if(map[i][j] == 0){
+                Map.wall[k].x = x;
+                Map.wall[k].y = y;
+                Map.wall[k].width = LADOX;
+                Map.wall[k].height = LADOY;
+                k++;
+                //DrawRectangleRec(Map.wall[i][j], PURPLE); //Paredes
+            }
+            /* if(map[i][j] == 5)
+                DrawRectangle(x, y, LADOX, LADOY, RED); //Armadilhas */
+            if(map[i][j] == 6){
+                Map.portal.x = x;
+                Map.portal.y = y;
+                Map.portal.width = LADOX;
+                Map.portal.height = LADOY;
+                
+            }
+        }
+    }  
+    portal = (Rectangle){Map.portal.x, Map.portal.y, Map.portal.width, Map.portal.height};      
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+        while (!WindowShouldClose() && *state != 'q' && *state != 'n' && *state != 'p'){ //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
         
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-        while (!WindowShouldClose() && *state != 'q' && *state != 'n'){
 
             //Desenha o mapa na tela:
-            for(i = 0; i < (MAP_HEIGHT); i++){
-                for(j = 0; j < MAP_WIDTH; j++){
-                    if(map[i][j] == 0){
-                        DrawRectangle(j*FATORX+MARGIN_LEFT, i*FATORY+MARGIN_TOP, LADOX, LADOY, PURPLE);
-                    }
+            
+            for(i=0; i<k; i++){
+               
+             DrawRectangleRec(Map.wall[i], PURPLE); //Paredes
+             
                 }
-             }
+            DrawRectangleRec(portal, YELLOW); //Portal
+           
             //                  JOGADOR:
             //Verifica se o usuario apertou ESC
             if(IsKeyPressed(KEY_ESCAPE)){
@@ -331,21 +371,24 @@ void novo_jogo(char *state){
             //Colisao com o Jogador:
             for(i = 0; i < n_inimigos; i++){
                 if(CheckCollisionRecs(
-                    (Rectangle){player.ent.x, player.ent.y, LADOX, LADOY},
-                    (Rectangle){inimigo[i].x, inimigo[i].y, LADOX, LADOY})) {
+                    (Rectangle){player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY},
+                    (Rectangle){inimigo[i].x, inimigo[i].y, LADO_QUADRADOX, LADO_QUADRADOY})) {
 
                         /* player.ent.x -= VELOCIDADE*player.ent.dx;
-                        player.ent.y += VELOCIDADE*player.ent.dy; */
- 
-
-                        
+                        player.ent.y += VELOCIDADE*player.ent.dy; */ 
  
                 }
             }
-
-            
-            if(map[player.ent.y/FATORY][player.ent.x/FATORX] == 6 || IsKeyPressed(KEY_SPACE)){
-                *state = 'n';
+            if(CheckCollisionRecs(
+                (Rectangle){player.ent.x, player.ent.y, LADO_QUADRADOX+1, LADO_QUADRADOY+1},
+                 portal)) {
+                
+                *state = 'p';
+            }
+            if(IsKeyPressed(KEY_R))
+                current_map = 0; //Reseta o mapa para testes
+            if(IsKeyPressed(KEY_SPACE)){
+                *state = 'p';
             }
 
     
@@ -357,7 +400,7 @@ void novo_jogo(char *state){
             ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo
             EndDrawing();//Finaliza o ambiente de desenho na tela
         }
-        if(*state == 'n'){
+        if(*state == 'p'){
             if(current_map < MAX_MAPS)
                 current_map++;
             novo_jogo(state);

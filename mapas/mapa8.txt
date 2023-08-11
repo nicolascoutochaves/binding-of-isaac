@@ -13,7 +13,7 @@
 #                                                          #
 ######################X                                    #
 #  X                  X                                    #
-P                     X                                    #
+PP                    X                                    #
 #  X                  X                                    #
 #  X     B                                                 #
 ######################X                                    #
@@ -29,3 +29,5 @@ P                     X                                    #
 ############################################################
 ############################################################
 //H=Hack. Caso de tempo para a gente fazer um 'desafio' de colocar xeat no jogo pensei em o cara usar algo para atravessar fogo ele fica invencivel
+
+//Esse mapa deu um pouco de problema: o portal nao ta spawnando quando e colocado no canto esquerdo. Acho que teria que dar uma reformulada e colocar no lado direito  
