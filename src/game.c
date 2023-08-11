@@ -23,17 +23,18 @@
 #define FATORX  (LARGURA_MAPA / MAP_WIDTH) //Fator de conversao do eixo x
 #define FATORY  (ALTURA_MAPA / MAP_HEIGHT) //Fator de conversao do eixo y
 
-#define LADOX FATORX //Espessura x das paredes do mapa
-#define LADOY FATORY //Espessura em y das paredes do mapa
+#define LADOX (LARGURA_MAPA / MAP_WIDTH) //Espessura x das paredes do mapa
+#define LADOY (ALTURA_MAPA / MAP_HEIGHT) //Espessura em y das paredes do mapa
 
 //--------------------------------------------------------------------------------------
 //              Personagens:
 
-#define LADO_QUADRADOX FATORX
-#define LADO_QUADRADOY FATORY
-#define VELOCIDADE FATORX/4
+#define LADO_QUADRADOX LADOX
+#define LADO_QUADRADOY LADOY
+#define VELOCIDADE 1
 #define MAX_INIMIGOS 15
-
+#define MAX_TRAPS 20
+#define MAX_BOMBS 20
 //          Define o n maximo de mapas do modo normal:
 #define MAX_MAPS 9 //Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
 
@@ -46,6 +47,7 @@ typedef struct Entidades{ // Entidades means enemys or players
     int dx, dy; //direcoes
     int vida;
     bool active; //Retorna se esta vivo ou morto
+    bool collided;
 }Entidade; //Struct usada para criar novas "entidades" como jogadores e inimigos.
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
@@ -54,18 +56,18 @@ typedef struct Player{
     int pontuacao;
 } Player;
 
-typedef struct Portal{
-    float x;
-    float y;
-    float width;
-    float height;
+typedef struct ITEM{
+    int x;
+    int y;
     bool active;
-
-} Portal;
+} ITEM;
 
 typedef struct Map{
-    Rectangle wall[MAP_HEIGHT*MAP_HEIGHT];
-    Portal portal;
+    ITEM portal;
+    ITEM trap[MAX_TRAPS];
+    ITEM bomb[MAX_BOMBS];
+    Player player;
+    Entidade inimigo[MAX_INIMIGOS];
 } Map;
 
 
@@ -73,46 +75,28 @@ typedef struct Map{
 void menu(char *state, int were_played);
 
 
-int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy, int fatorx, int fatory, int ladox, int ladoy){
+int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy){
     int deve_mover = 1;
 
     //Desconta de x e y as margens para nao bugar as colisoes
-    y -= MARGIN_TOP;
-    x -= MARGIN_LEFT;
-
-
+   /*  y -= MARGIN_TOP;
+    x -= MARGIN_LEFT; */
     //verifica as posicoes nos quatro vertices do quadrado:
-    if(
-        (m[(y)/fatory][(x+ladox)/fatorx] == 0 && dx == 1)||
-        (m[(y)/fatory][((x-ladox/6)/fatorx)] == 0 && dx == -1)||
-        (m[(y+ladoy-1)/fatory][(x+ladox)/fatorx] == 0 && dx == 1)||
-        (m[(y+ladoy-1)/fatory][((x-ladox/6)/fatorx)] == 0 && dx == -1)) deve_mover = 0;
-
-
 
     if(
-        (m[(y-ladoy/6)/fatory][(x)/fatorx] == 0 && dy == 1)||
-        (m[(y+ladoy)/fatory][(x)/fatorx] == 0 && dy == -1)||
-        (m[(y-ladoy/6)/fatory][(x+ladox-1)/fatorx] == 0 && dy == 1)||
-        (m[(y+ladoy)/fatory][(x+ladox-1)/fatorx] == 0 && dy == -1)) deve_mover = 0;
-
+        (m[y][x+1] == 0 && dx == 1)||
+        (m[y][x-1] == 0 && dx == -1)) deve_mover = 0;
+    if(
+        (m[y-1][x] == 0 && dy == 1)||
+        (m[y+1][x] == 0 && dy == -1)) deve_mover = 0;
+   
 
     return deve_mover;
 }
 
 void move(int dx, int dy, int *x, int *y){
-    if(dx == 1){
-        *x += VELOCIDADE; //Move para direita
-    }
-    if(dx == -1){
-        *x -= VELOCIDADE; //Move para esquerda
-    }
-    if(dy == 1){
-        *y -= VELOCIDADE; //Move para cima
-    }
-    if(dy == -1){
-        *y += VELOCIDADE; //Move para baixo
-    }
+   *x += VELOCIDADE * dx;
+   *y -= VELOCIDADE * dy;
 }
 
 void redefineDeslocamento(int *dx, int *dy){
@@ -131,7 +115,7 @@ int movimentar(int *x, int *y, int *dx, int *dy, int map[MAP_HEIGHT][MAP_WIDTH])
 
     int moveu = 0;
 
-    if(deveMover(map, *x, *y, *dx, *dy, FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY)){
+    if(deveMover(map, *x, *y, *dx, *dy)){
         move(*dx, *dy, x, y);
         moveu = 1;
 
@@ -142,27 +126,27 @@ int movimentar(int *x, int *y, int *dx, int *dy, int map[MAP_HEIGHT][MAP_WIDTH])
 
 void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH]){
 
-    if (deveMover(map, inimigo->x, inimigo->y, inimigo->dx, inimigo->dy,FATORX, FATORY, LADO_QUADRADOX, LADO_QUADRADOY)){
+    if (deveMover(map, inimigo->x, inimigo->y, inimigo->dx, inimigo->dy)){
         if( ((player.ent.x) > (inimigo->x))){
             inimigo->x += VELOCIDADE;
         }
 
-        if( ((player.ent.x + LADO_QUADRADOX ) < (inimigo->x)) ){
+        if( ((player.ent.x) < (inimigo->x)) ){
             inimigo->x -= VELOCIDADE;
         }
 
-        if( ((player.ent.y + LADO_QUADRADOY) < (inimigo->y)) ){
+        if( ((player.ent.y) < (inimigo->y)) ){
             inimigo->y -= VELOCIDADE;
         }
 
         if( ((player.ent.y) > (inimigo->y)) ){
             inimigo->y += VELOCIDADE;
         }
-    } else{
+    } /* else{
         redefineDeslocamento(&inimigo->dx, &inimigo->dy);
         inimigo->x += VELOCIDADE * inimigo->dx;
         inimigo->y -= VELOCIDADE * inimigo->dy;
-    }
+    } */
 
 
 }
@@ -175,17 +159,16 @@ void novo_jogo(char *state){
     FILE *maptxt;
     char filename[30];
     char c; //caracter do mapa
-    int modo_jogo = 0; //0 e padrao, 1 e a geracao aleatoria
+    int modo_jogo = 1; //0 e padrao, 1 e a geracao aleatoria
     int n_inimigos = 0;
-    int i, j, k = 0;
+    int i, j;
     int  x = 0, y = 0;
     Player player = {0};
     Entidade inimigo[MAX_INIMIGOS];
     Map Map;
     Rectangle portal;
     
-    if(modo_jogo) generateMap(map); //Se o modo de jogo for 1, gera o mapa e os spawns aleatoriamente, se nao, carrega os arquivos
-    else{
+    if(!modo_jogo){ //Se o modo de jogo for 1, gera o mapa e os spawns aleatoriamente, se nao, carrega os arquivos
         sprintf(filename, "../mapas/mapa%d.txt", current_map); //define o caminho do mapa e salva na variavel "filename", para que possamos alterar o nome do mapa dinamicamente (pois na funcao fopen nao pode passar paramentros para formatacao)
 
         if(!(maptxt = fopen(filename, "r"))){
@@ -196,21 +179,21 @@ void novo_jogo(char *state){
             rewind(maptxt); //coloca o cursor no inicio do mapa
             for(i = 0; i < MAP_HEIGHT; i++){
                 for(j = 0; j < MAP_WIDTH; j++){
+                    fflush(maptxt);
                     if((fread(&c, sizeof(char), 1, maptxt))!= 1){
                         DrawText("Erro ao ler o mapa!", LARGURA/2-MeasureText("Erro ao ler o mapa!", FONT_SIZE), ALTURA, FONT_SIZE, RED);
                     } else{
                         c = toupper(c);
-
                         switch(c){
                             case '#': map[i][j] = 0; //Parede
                                 break;
                             case 'J': map[i][j] = 2; //jogador
-                                player.ent.x = j*FATORX;
-                                player.ent.y = i*FATORY;
+                                player.ent.x = j;
+                                player.ent.y = i;
                                 break;
                             case 'I': map[i][j] = 3; //Inimigo
-                                    inimigo[n_inimigos].x = j*FATORX;
-                                    inimigo[n_inimigos].y = i*FATORY;
+                                    inimigo[n_inimigos].x = j;
+                                    inimigo[n_inimigos].y = i;
                                     n_inimigos++;//incrementa n_inimigos para verificar o proximo inimigo            
                                 break;
                             case 'B': map[i][j] = 4; //Bomba
@@ -218,6 +201,9 @@ void novo_jogo(char *state){
                             case 'X': map[i][j] = 5; //Armadilha
                                 break;
                             case 'P': map[i][j] = 6; //Portal
+                                Map.portal.x = j;
+                                Map.portal.y = i;
+                                Map.portal.active = false;                                  
                                 break;
                             case '\n': fseek(maptxt, 1, SEEK_CUR); //Pula o caracter de new line
                                 break;
@@ -225,7 +211,6 @@ void novo_jogo(char *state){
 
                         } 
                         
-                        fflush(maptxt);
                     }
                 
                 }
@@ -234,95 +219,42 @@ void novo_jogo(char *state){
             fclose(maptxt);
                 
         }
-    }
-
-
-    if(modo_jogo){
-
+    } else {
         int difficulty = 1;
         if (n_inimigos > MAX_INIMIGOS) n_inimigos = MAX_INIMIGOS;
         n_inimigos = 1 + (difficulty * current_map);
+        generateMap(map);
 
             for(i = 0; i < n_inimigos; i++){
         //Spawn dos Inimigos
-        while(map[y/FATORY][x/FATORX] == 0 ||
-                map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
-                map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
-                map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
-            x = rand() % ((LARGURA_MAPA-LADOX)/FATORX)*LADOX;
-            y = rand() % ((ALTURA_MAPA-LADOY)/FATORX/2)*LADOY;
+        while(map[y][x] == 0){
+            x = rand() % MAP_WIDTH-1;
+            y = rand() % (MAP_HEIGHT-1)/2;
         }
         inimigo[i].x = x;
         inimigo[i].y = y;
 
-        //Aqui poderiamos futuramente implementar uma opçao para os inimigos nao spawnarem juntos
-        /* while(x == inimigo[i-1].x || x+LADOX+1 == inimigo[i-1].x){
-            x = rand() % ((LARGURA-LADOX)/FATORX)*LADOX;
-            inimigo[i].x = x;
-        }
-        while(y == inimigo[i-1].y || y+LADOY+1 == inimigo[i-1].y){
-            y = rand() % ((ALTURA-LADOY)/FATORX/2)*LADOY;
-            inimigo[i].y = y;
-        } */
-
-        x = 2;
-        y = 2;
+        x = 0;
+        y = 0;
     }
         //Spawn do jogador
-
-    while(map[y/FATORY][x/FATORX] == 0 ||
-                map[y/FATORY][(x+LADOX)/FATORX] == 0 ||
-                map[(y+LADOY)/FATORY][(x)/FATORX] == 0 ||
-                map[(y+LADOY)/FATORY][(x+LADOX)/FATORX] == 0){
-            x = rand() % ((LARGURA_MAPA-LADOX)/FATORX)*LADOX;
-            y = (ALTURA_MAPA - LADO_QUADRADOY) - rand() % ((ALTURA_MAPA-LADOY)/FATORX/2)*LADOY; // Player spawna na metade de baixo do mapa
+    while(map[y][x] == 0){
+            x = rand() % MAP_WIDTH-1;
+            y = (MAP_HEIGHT - 1) - rand() % (MAP_HEIGHT/2); // Player spawna na metade de baixo do mapa
         }
 
             player.ent.x = x;
             player.ent.y = y;
     
 } 
+    for(i = 0; i < n_inimigos; i++)
+        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
 
-    redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
-
-    k = 0;
-    for(i = 0; i < MAP_HEIGHT; i++){
-        for(j = 0; j < MAP_WIDTH; j++){
-            x = j*FATORX+MARGIN_LEFT;
-            y = i*FATORY+MARGIN_TOP;
-            if(map[i][j] == 0){
-                Map.wall[k].x = x;
-                Map.wall[k].y = y;
-                Map.wall[k].width = LADOX;
-                Map.wall[k].height = LADOY;
-                k++;
-                //DrawRectangleRec(Map.wall[i][j], PURPLE); //Paredes
-            }
-            /* if(map[i][j] == 5)
-                DrawRectangle(x, y, LADOX, LADOY, RED); //Armadilhas */
-            if(map[i][j] == 6){
-                Map.portal.x = x;
-                Map.portal.y = y;
-                Map.portal.width = LADOX;
-                Map.portal.height = LADOY;
-                
-            }
-        }
-    }  
-    portal = (Rectangle){Map.portal.x, Map.portal.y, Map.portal.width, Map.portal.height};      
+    
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
         while (!WindowShouldClose() && *state != 'q' && *state != 'n' && *state != 'p'){ //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
         
-
-            //Desenha o mapa na tela:
-            
-            for(i=0; i<k; i++){
-               
-             DrawRectangleRec(Map.wall[i], PURPLE); //Paredes
-             
-                }
-            DrawRectangleRec(portal, YELLOW); //Portal
            
             //                  JOGADOR:
             //Verifica se o usuario apertou ESC
@@ -342,62 +274,75 @@ void novo_jogo(char *state){
                 player.ent.dy = -1;
 
 
-
-            movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
-            DrawRectangle(player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
-
-
-            //              Inimigos
-
-            for(i = 0; i < n_inimigos; i++) {
-            DrawRectangle(inimigo[i].x, inimigo[i].y, LADOX, LADOY, ORANGE);
-            }
-
- 
-             for(i = 0; i < n_inimigos; i++){
-
-                
-
-                if((sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow( (player.ent.y - inimigo[i].y), 2)) ) < 10*FATORX){
-                    DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
-                    persegue(player, &inimigo[i], map);
-
-                } else if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
-                     redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
-             }  
-
-
-
-            //Colisao com o Jogador:
+            //Colisoes com os inimigos
             for(i = 0; i < n_inimigos; i++){
-                if(CheckCollisionRecs(
-                    (Rectangle){player.ent.x, player.ent.y, LADO_QUADRADOX, LADO_QUADRADOY},
-                    (Rectangle){inimigo[i].x, inimigo[i].y, LADO_QUADRADOX, LADO_QUADRADOY})) {
-
-                        /* player.ent.x -= VELOCIDADE*player.ent.dx;
-                        player.ent.y += VELOCIDADE*player.ent.dy; */ 
- 
+                if((player.ent.x + player.ent.dx == inimigo[i].x && player.ent.y == inimigo[i].y) ||
+                   (player.ent.y - player.ent.dy == inimigo[i].y && player.ent.x == inimigo[i].x)) {
+                    player.ent.collided = true;
+                }
+                if((inimigo[i].x + inimigo[i].dx == player.ent.x && inimigo[i].y == player.ent.y) ||
+                   (inimigo[i].y - inimigo[i].dy == player.ent.y && inimigo[i].x == player.ent.x)){
+                    inimigo[i].collided = true;
                 }
             }
-            if(CheckCollisionRecs(
-                (Rectangle){player.ent.x, player.ent.y, LADO_QUADRADOX+1, LADO_QUADRADOY+1},
-                 portal)) {
-                
+
+            Map.portal.active = true;
+            //Colisoes com itens to mapa:
+            if(player.ent.x == Map.portal.x && player.ent.y == Map.portal.y && Map.portal.active) 
                 *state = 'p';
-            }
+
             if(IsKeyPressed(KEY_R))
                 current_map = 0; //Reseta o mapa para testes
             if(IsKeyPressed(KEY_SPACE)){
                 *state = 'p';
             }
 
-    
-            
+            if(!player.ent.collided)
+                movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
+                
+            player.ent.collided = false;
             player.ent.dx = 0;
             player.ent.dy = 0;
 
+
+             for(i = 0; i < n_inimigos; i++){
+
+                if(!inimigo[i].collided){
+                    if((sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow( (player.ent.y - inimigo[i].y), 2)) ) < 10){
+                    //DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
+                        persegue(player, &inimigo[i], map);
+
+                    }
+                    else if(!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
+                        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+
+                }
+                inimigo[i].collided = false;
+             }  
+
+
+
+
             BeginDrawing();//Inicia o ambiente de desenho na tela
             ClearBackground(RAYWHITE);//Limpa a tela e define cor de fundo
+
+            DrawRectangle(player.ent.x*FATORX+MARGIN_LEFT, player.ent.y*FATORY+MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
+            for(i = 0; i < n_inimigos; i++) {
+            DrawRectangle(inimigo[i].x*FATORX+MARGIN_LEFT, inimigo[i].y*FATORY+MARGIN_TOP, LADOX, LADOY, ORANGE);
+            }
+
+            //Desenha o mapa na tela:
+            
+            for(i = 0; i < MAP_HEIGHT; i++){
+                for(j = 0; j < MAP_WIDTH; j++){
+                    if(map[i][j] == 0)
+                        DrawRectangle(j*FATORX+MARGIN_LEFT, i*FATORY+MARGIN_TOP, LADOX, LADOY, PURPLE);
+                }
+               
+            }
+            DrawRectangleRec(portal, YELLOW); //Portal
+
+
             EndDrawing();//Finaliza o ambiente de desenho na tela
         }
         if(*state == 'p'){
@@ -517,7 +462,7 @@ int main(void){ //
     char state = '\0'; //Estados do jogo
 
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
-    SetTargetFPS(60);
+    SetTargetFPS(20);
     SetExitKey(KEY_NULL);//remove a opcao de sair do jogo
 
         while(state == '\0' || state == 'e')
