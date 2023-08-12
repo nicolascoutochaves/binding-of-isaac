@@ -74,63 +74,51 @@ typedef struct Map
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
 void menu(char *state, int were_played);
 
-int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy)
-{
-    int deve_mover = 1;
-
-    // Desconta de x e y as margens para nao bugar as colisoes
-    /*  y -= MARGIN_TOP;
-     x -= MARGIN_LEFT; */
-    // verifica as posicoes nos quatro vertices do quadrado:
-
-    if (
-        (m[y][x + 1] == 0 && dx == 1) ||
-        (m[y][x - 1] == 0 && dx == -1))
-        deve_mover = 0;
-    if (
-        (m[y - 1][x] == 0 && dy == 1) ||
-        (m[y + 1][x] == 0 && dy == -1))
-        deve_mover = 0;
-
-    return deve_mover;
-}
-
-void move(int dx, int dy, int *x, int *y)
-{
-    *x += VELOCIDADE * dx;
-    *y -= VELOCIDADE * dy;
-}
-
-void redefineDeslocamento(int *dx, int *dy)
-{
+void redefineDeslocamento(int *dx, int *dy, int *steps)
+{   
+    int s = 0;
     *dx = 0;
     *dy = 0;
-
-    while (*dx == 0 && *dy == 0)
-    {
-        *dx = 1 - (rand() % 3);
-        *dy = 1 - (rand() % 3);
-    }
+    *steps = 0;
+    while(*steps == 0)
+        *steps = GetFrameTime()*500 + (rand() % (int)(GetFrameTime()*1000)); //Define um tempo para o inimigo se movimentar
+    while(s == 0)
+        s = 1 - (rand() % 3);
+        
+    if(s == 1)
+        while (*dx == 0)
+            *dx = 1 - (rand() % 3);
+    else
+        while(*dy == 0)
+            *dy = 1 - (rand() % 3);
+        
 }
 
-int movimentar(int *x, int *y, int *dx, int *dy, int map[MAP_HEIGHT][MAP_WIDTH])
+
+void movimentar(Entidade *entidade, int map[MAP_HEIGHT][MAP_WIDTH])
 {
-
-    int moveu = 0;
-
-    if (deveMover(map, *x, *y, *dx, *dy))
+    entidade->collided = false;
+    if ((map[entidade->y][entidade->x + 1] == 0 && entidade->dx == 1) ||
+        (map[entidade->y][entidade->x - 1] == 0 && entidade->dx == -1))
     {
-        move(*dx, *dy, x, y);
-        moveu = 1;
-    }
+        entidade->collided = true;
+    } else
+        entidade->x += VELOCIDADE * entidade->dx;
 
-    return moveu;
+    if ((map[entidade->y - 1][entidade->x] == 0 && entidade->dy == 1) ||
+        (map[entidade->y + 1][entidade->x] == 0 && entidade->dy == -1))
+    {
+        entidade->collided = true;       
+    } else
+        entidade->y -= VELOCIDADE * entidade->dy;
+
 }
 
 void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH])
 {
 
-    if (deveMover(map, inimigo->x, inimigo->y, inimigo->dx, inimigo->dy))
+    if (!(map[inimigo->y][inimigo->x + 1] == 0 && inimigo->dx == 1) &&
+        !(map[inimigo->y][inimigo->x - 1] == 0 && inimigo->dx == -1))
     {
         if (((player.ent.x) > (inimigo->x)))
         {
@@ -141,6 +129,10 @@ void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH])
         {
             inimigo->x -= VELOCIDADE;
         }
+    }
+    if (!(map[inimigo->y - 1][inimigo->x] == 0 && inimigo->dy == 1) &&
+        !(map[inimigo->y + 1][inimigo->x] == 0 && inimigo->dy == -1))
+    {
 
         if (((player.ent.y) < (inimigo->y)))
         {
@@ -151,11 +143,7 @@ void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH])
         {
             inimigo->y += VELOCIDADE;
         }
-    } /* else{
-        redefineDeslocamento(&inimigo->dx, &inimigo->dy);
-        inimigo->x += VELOCIDADE * inimigo->dx;
-        inimigo->y -= VELOCIDADE * inimigo->dy;
-    } */
+    }
 }
 int modo_jogo = 1;   // 0 e padrao, 1 e a geracao aleatoria
 int current_map = 1; // variavel global por enquanto, pra nao precisar passar o mapa atual por referencia para a funcao.
@@ -168,6 +156,7 @@ void novo_jogo(char *state)
     char filename[30];
     char c; // caracter do mapa
     int n_inimigos = 0;
+    int enemy_steps;
     int i, j;
     int x = 0, y = 0;
     Player player = {0};
@@ -175,6 +164,7 @@ void novo_jogo(char *state)
     Map Map;
     Rectangle portal;
 
+    srand(time(NULL)); //Gera a seed da funcao rand() usando o tempo do sistema
     if (!modo_jogo)
     {                                                          // Se o modo de jogo for 1, gera o mapa e os spawns aleatoriamente, se nao, carrega os arquivos
         sprintf(filename, "../mapas/mapa%d.txt", current_map); // define o caminho do mapa e salva na variavel "filename", para que possamos alterar o nome do mapa dinamicamente (pois na funcao fopen nao pode passar paramentros para formatacao)
@@ -259,7 +249,6 @@ void novo_jogo(char *state)
             }
             inimigo[i].x = x;
             inimigo[i].y = y;
-
             x = 0;
             y = 0;
         }
@@ -274,7 +263,7 @@ void novo_jogo(char *state)
         player.ent.y = y;
     }
     for (i = 0; i < n_inimigos; i++)
-        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy, &enemy_steps);
 
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------
@@ -311,7 +300,6 @@ void novo_jogo(char *state)
                 (inimigo[i].y - inimigo[i].dy == player.ent.y && inimigo[i].x == player.ent.x))
             {
                 inimigo[i].collided = true;
-                
             }
         }
 
@@ -328,23 +316,32 @@ void novo_jogo(char *state)
         }
 
         if (!player.ent.collided)
-            movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
+            movimentar(&player.ent, map);
         player.ent.collided = false;
         player.ent.dx = 0;
         player.ent.dy = 0;
 
         for (i = 0; i < n_inimigos; i++)
         {
-
-            if (!inimigo[i].collided)
+ 
+            if (inimigo[i].collided || enemy_steps == 0)
             {
+                redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy, &enemy_steps);
+                    
+            } else{
                 /* if ((sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow((player.ent.y - inimigo[i].y), 2))) < 10)
                 {
                     // DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
                     persegue(player, &inimigo[i], map);
                 }
-                else  */if (!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
-                    redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+                else*/
+
+                if(enemy_steps > 0){
+                    movimentar(&inimigo[i], map);
+                    enemy_steps--;
+                }
+                    
+                
             }
             inimigo[i].collided = false;
         }
@@ -448,8 +445,9 @@ void menu(char *state, int were_played)
     char text[100] = "";
 
     while (*state == '\0' || *state == 'e')
-    {   
-        if (IsKeyPressed(KEY_N)){
+    {
+        if (IsKeyPressed(KEY_N))
+        {
             *state = 'a';
         }
         if (IsKeyPressed(KEY_C))
@@ -496,32 +494,35 @@ void menu(char *state, int were_played)
         }
         EndDrawing();
     }
-    while(*state == 'a'){
-        
-            strcpy(text, "Selecione o Modo de jogo:");
-            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA/4 -FONT_SIZE, FONT_SIZE, BLACK);
-            strcpy(text, "0 - padrao");
-            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE-10) / 2, ALTURA/4 -FONT_SIZE+100, FONT_SIZE-10, BLACK);
-            strcpy(text, "1 - geracao aleatoria");
-            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE-10) / 2, ALTURA/4 -FONT_SIZE+150, FONT_SIZE-10, BLACK);
+    while (*state == 'a')
+    {
 
-            if(IsKeyPressed(KEY_ZERO) || IsKeyPressed(KEY_KP_0)){
-                modo_jogo = 0;
-                current_map = 1;
-                *state = 'n';
-                novo_jogo(state);
-                were_played = 1;
-            }
-            if(IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_KP_1)){
-                modo_jogo = 1;
-                current_map = 1;
-                *state = 'n';
-                novo_jogo(state);
-                were_played = 1;
-            }
-            BeginDrawing();
-            ClearBackground(RAYWHITE);
-            EndDrawing();
+        strcpy(text, "Selecione o Modo de jogo:");
+        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 4 - FONT_SIZE, FONT_SIZE, BLACK);
+        strcpy(text, "0 - padrao");
+        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 4 - FONT_SIZE + 100, FONT_SIZE - 10, BLACK);
+        strcpy(text, "1 - geracao aleatoria");
+        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 4 - FONT_SIZE + 150, FONT_SIZE - 10, BLACK);
+
+        if (IsKeyPressed(KEY_ZERO) || IsKeyPressed(KEY_KP_0))
+        {
+            modo_jogo = 0;
+            current_map = 1;
+            *state = 'n';
+            novo_jogo(state);
+            were_played = 1;
+        }
+        if (IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_KP_1))
+        {
+            modo_jogo = 1;
+            current_map = 1;
+            *state = 'n';
+            novo_jogo(state);
+            were_played = 1;
+        }
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+        EndDrawing();
     }
 }
 //--------------------------------------------------------------------------------------
