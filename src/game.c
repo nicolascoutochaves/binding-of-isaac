@@ -115,6 +115,7 @@ void movimentar(Entidade *entidade, int map[MAP_HEIGHT][MAP_WIDTH])
         entidade->y -= VELOCIDADE * entidade->dy;
 
 }
+//Funcao que recebe uma entidade e verifica quantas paredes existem na direcao que a entidade esta "olhando"
 void rayCast(Entidade ent, int map[MAP_HEIGHT][MAP_WIDTH]){
     int lineofsight = 15;
     int sight = 0;
@@ -122,23 +123,28 @@ void rayCast(Entidade ent, int map[MAP_HEIGHT][MAP_WIDTH]){
     int seen_objectsy = 0;
     int side = 1, sidey =1;
     char text[100];
-    for(sight = 0; sight < lineofsight; sight++){
-        
-        side = ent.dx;
+    //Eixo X
+    side = ent.dx;
+    while(sight < lineofsight && ent.x+sight*side < MAP_WIDTH && ent.x+sight*side >= 0){
         if(!map[ent.y][ent.x+sight*side]){
             seen_objectsx++;
         }
-        
-        sidey = ent.dy;
-        if(!map[ent.y-sight*sidey][ent.x]){
+        sight++;
+    }
+    sight = 0;
+    //Eixo Y
+    side = ent.dy;
+    while(sight < lineofsight && ent.y-sight*side < MAP_HEIGHT && ent.y-sight*side >= 0){
+        if(!map[ent.y-sight*side][ent.x]){
             seen_objectsy++;
         }
+        sight++;
     }
-    sprintf(text, "N objetos eixo x: %d", seen_objectsx);
+    
+    /* sprintf(text, "N objetos eixo x: %d", seen_objectsx);
     DrawText(text, LARGURA/2, ALTURA/2, FONT_SIZE, RED);
     sprintf(text, "N objetos eixo y: %d", seen_objectsy);
-    DrawText(text, LARGURA/2, ALTURA/2+100, FONT_SIZE, RED);
-
+    DrawText(text, LARGURA/2, ALTURA/2+100, FONT_SIZE, RED); */
 
 }
 int persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH], int distance)
