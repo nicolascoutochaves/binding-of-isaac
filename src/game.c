@@ -46,6 +46,7 @@ typedef struct Entidades
     int vida;
     bool active; // Retorna se esta vivo ou morto
     bool collided;
+    bool canChase;
 } Entidade; // Struct usada para criar novas "entidades" como jogadores e inimigos.
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
@@ -74,23 +75,24 @@ typedef struct Map
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
 void menu(char *state, int were_played);
 
-void redefineDeslocamento(int *dx, int *dy, int *steps)
+void redefineDeslocamento(Entidade *inimigo, int *steps)
 {   
     int s = 0;
-    *dx = 0;
-    *dy = 0;
+    inimigo->dx = 0;
+    inimigo->dy = 0;
     *steps = 0;
     while(*steps == 0)
-        *steps = GetFrameTime()*500 + (rand() % (int)(GetFrameTime()*1000)); //Define um tempo para o inimigo se movimentar
+        *steps = (int)GetFrameTime()*400 + (rand() % (int)(GetFrameTime()*700)); //Define um tempo para o inimigo se movimentar
+    
     while(s == 0)
         s = 1 - (rand() % 3);
         
     if(s == 1)
-        while (*dx == 0)
-            *dx = 1 - (rand() % 3);
+        while (inimigo->dx == 0)
+            inimigo->dx = 1 - (rand() % 3);
     else
-        while(*dy == 0)
-            *dy = 1 - (rand() % 3);
+        while(inimigo->dy == 0)
+            inimigo->dy = 1 - (rand() % 3);
         
 }
 
@@ -113,37 +115,120 @@ void movimentar(Entidade *entidade, int map[MAP_HEIGHT][MAP_WIDTH])
         entidade->y -= VELOCIDADE * entidade->dy;
 
 }
-
-void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH])
-{
-
-    if (!(map[inimigo->y][inimigo->x + 1] == 0 && inimigo->dx == 1) &&
-        !(map[inimigo->y][inimigo->x - 1] == 0 && inimigo->dx == -1))
-    {
-        if (((player.ent.x) > (inimigo->x)))
-        {
-            inimigo->x += VELOCIDADE;
+void rayCast(Entidade ent, int map[MAP_HEIGHT][MAP_WIDTH]){
+    int lineofsight = 15;
+    int sight = 0;
+    int seen_objectsx = 0;
+    int seen_objectsy = 0;
+    int side = 1, sidey =1;
+    char text[100];
+    for(sight = 0; sight < lineofsight; sight++){
+        
+        side = ent.dx;
+        if(!map[ent.y][ent.x+sight*side]){
+            seen_objectsx++;
         }
-
-        if (((player.ent.x) < (inimigo->x)))
-        {
-            inimigo->x -= VELOCIDADE;
-        }
-    }
-    if (!(map[inimigo->y - 1][inimigo->x] == 0 && inimigo->dy == 1) &&
-        !(map[inimigo->y + 1][inimigo->x] == 0 && inimigo->dy == -1))
-    {
-
-        if (((player.ent.y) < (inimigo->y)))
-        {
-            inimigo->y -= VELOCIDADE;
-        }
-
-        if (((player.ent.y) > (inimigo->y)))
-        {
-            inimigo->y += VELOCIDADE;
+        
+        sidey = ent.dy;
+        if(!map[ent.y-sight*sidey][ent.x]){
+            seen_objectsy++;
         }
     }
+    sprintf(text, "N objetos eixo x: %d", seen_objectsx);
+    DrawText(text, LARGURA/2, ALTURA/2, FONT_SIZE, RED);
+    sprintf(text, "N objetos eixo y: %d", seen_objectsy);
+    DrawText(text, LARGURA/2, ALTURA/2+100, FONT_SIZE, RED);
+
+
+}
+int persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH], int distance)
+{       
+        int distancex = sqrt(pow(player.ent.x - inimigo->x, 2));
+        int distancey = sqrt(pow(player.ent.y - inimigo->y, 2));
+        int count, countwall = 0;
+        bool perseguiu = false;
+        inimigo->canChase = false;
+        
+         if (((player.ent.x) > (inimigo->x)))
+        {
+            
+            while(count < distancex){
+                if(map[inimigo->y][inimigo->x+count] == 0)
+                    countwall++;
+                
+                count++;
+            }
+            if(countwall == 0)
+                    inimigo->canChase = true;
+            else
+                inimigo->canChase = false;
+
+            if(inimigo->canChase){
+                inimigo->dx = 1;
+                movimentar(inimigo, map);
+                perseguiu = true;
+            }
+        }
+
+        else if (((player.ent.x) < (inimigo->x)))
+        {
+            
+            while(count < distancex){
+                if(map[inimigo->y][inimigo->x-count] == 0)
+                    countwall++;
+                
+                count++;
+            }
+            if(countwall == 0)
+                    inimigo->canChase = true;
+            else
+                inimigo->canChase = false;
+
+            if(inimigo->canChase){
+                inimigo->dx = -1;
+                movimentar(inimigo, map);
+                perseguiu = true;
+            }
+        } 
+
+        else if (((player.ent.y) < (inimigo->y)))
+        {
+            while(count < distancey){
+                if(map[inimigo->y-count][inimigo->x] == 0)
+                    countwall++;
+                count++;
+            }
+            if(countwall == 0)
+                    inimigo->canChase = true;
+            else 
+                inimigo->canChase = false;
+            
+            if(inimigo->canChase){
+                inimigo->dy = 1;
+                movimentar(inimigo, map);
+                perseguiu = true;
+            }
+        }
+
+        else if (((player.ent.y) > (inimigo->y)))
+        {
+            while(count < distancey){
+                if(map[inimigo->y+count][inimigo->x] == 0)
+                    countwall++;
+                count++;
+            }
+            if(countwall == 0)
+                    inimigo->canChase = true;
+            else
+                inimigo->canChase = false;
+
+            if(inimigo->canChase){
+                inimigo->dy = -1;
+                movimentar(inimigo, map);
+                perseguiu = true;
+            }
+        }
+        return perseguiu;
 }
 int modo_jogo = 1;   // 0 e padrao, 1 e a geracao aleatoria
 int current_map = 1; // variavel global por enquanto, pra nao precisar passar o mapa atual por referencia para a funcao.
@@ -263,7 +348,7 @@ void novo_jogo(char *state)
         player.ent.y = y;
     }
     for (i = 0; i < n_inimigos; i++)
-        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy, &enemy_steps);
+        redefineDeslocamento(&inimigo[i], &enemy_steps);
 
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------
@@ -278,6 +363,7 @@ void novo_jogo(char *state)
             menu(state, 1);
             //  Time(0.2);
         }
+        
         // Define as direcoes dx e dy do jogador:
         if (IsKeyDown(KEY_D))
             player.ent.dx = 1;
@@ -287,6 +373,7 @@ void novo_jogo(char *state)
             player.ent.dy = 1;
         if (IsKeyDown(KEY_S))
             player.ent.dy = -1;
+
 
         // Colisoes com os inimigos
         for (i = 0; i < n_inimigos; i++)
@@ -314,38 +401,47 @@ void novo_jogo(char *state)
         {
             *state = 'p';
         }
+       
 
         if (!player.ent.collided)
             movimentar(&player.ent, map);
         player.ent.collided = false;
+        rayCast(player.ent, map);
         player.ent.dx = 0;
         player.ent.dy = 0;
 
         for (i = 0; i < n_inimigos; i++)
         {
- 
-            if (inimigo[i].collided || enemy_steps == 0)
+            if(enemy_steps == 0)
+                redefineDeslocamento(&inimigo[i], &enemy_steps);
+
+            if (inimigo[i].collided)
             {
-                redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy, &enemy_steps);
-                    
+                inimigo[i].canChase = false;
+                redefineDeslocamento(&inimigo[i], &enemy_steps);   
             } else{
-                /* if ((sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow((player.ent.y - inimigo[i].y), 2))) < 10)
-                {
-                    // DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
-                    persegue(player, &inimigo[i], map);
-                }
-                else*/
-
-                if(enemy_steps > 0){
-                    movimentar(&inimigo[i], map);
-                    enemy_steps--;
-                }
-                    
+                int distancia = (sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow((player.ent.y - inimigo[i].y), 2)));
+                 //inimigo[i].canChase = true;
                 
+                //if (distancia < 10){
+                    // DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
+                    /*  if(!persegue(player, &inimigo[i], map, distancia)){
+                        if(enemy_steps > 0){
+                            movimentar(&inimigo[i], map);
+                            enemy_steps--;
+                        }
+                    }  */
+                //}
+                 /* else{
+                    if(enemy_steps > 0){
+                        movimentar(&inimigo[i], map);
+                        enemy_steps--;
+                    }
+                }  */
             }
-            inimigo[i].collided = false;
+            inimigo[i].collided = false;            
         }
-
+        
         //---------------------------------------------------------------------------
         //---------------------------------------------------------------------------
         //                          DESENHAR JOGO:
