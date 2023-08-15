@@ -116,12 +116,13 @@ void movimentar(Entidade *entidade, int map[MAP_HEIGHT][MAP_WIDTH])
 
 }
 //Funcao que recebe uma entidade e verifica quantas paredes existem na direcao que a entidade esta "olhando"
-void rayCast(Entidade ent, int map[MAP_HEIGHT][MAP_WIDTH]){
-    int lineofsight = 15;
+int rayCast(Entidade ent, Entidade object, int map[MAP_HEIGHT][MAP_WIDTH]){
+    int lineofsight = sqrt(pow(ent.x - object.x, 2) + pow(ent.y - object.y, 2));
     int sight = 0;
     int seen_objectsx = 0;
     int seen_objectsy = 0;
-    int side = 1, sidey =1;
+     int seen_objects = 0;
+    int side = 1;
     char text[100];
     //Eixo X
     side = ent.dx;
@@ -141,10 +142,16 @@ void rayCast(Entidade ent, int map[MAP_HEIGHT][MAP_WIDTH]){
         sight++;
     }
     
-    /* sprintf(text, "N objetos eixo x: %d", seen_objectsx);
-    DrawText(text, LARGURA/2, ALTURA/2, FONT_SIZE, RED);
+    sprintf(text, "N objetos eixo x: %d", seen_objectsx);
+    DrawText(text, LARGURA/2-200, ALTURA/2, FONT_SIZE, RED);
     sprintf(text, "N objetos eixo y: %d", seen_objectsy);
-    DrawText(text, LARGURA/2, ALTURA/2+100, FONT_SIZE, RED); */
+    DrawText(text, LARGURA/2-200, ALTURA/2+100, FONT_SIZE, RED);
+
+    seen_objects = seen_objectsx + seen_objectsy;
+    sprintf(text, "N objetos na direcao atual: %d", seen_objects);
+    DrawText(text, LARGURA/2-200, ALTURA/2+150, FONT_SIZE, RED); 
+
+    return seen_objects;
 
 }
 int persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH], int distance)
@@ -412,7 +419,6 @@ void novo_jogo(char *state)
         if (!player.ent.collided)
             movimentar(&player.ent, map);
         player.ent.collided = false;
-        rayCast(player.ent, map);
         player.ent.dx = 0;
         player.ent.dy = 0;
 
@@ -429,21 +435,23 @@ void novo_jogo(char *state)
                 int distancia = (sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow((player.ent.y - inimigo[i].y), 2)));
                  //inimigo[i].canChase = true;
                 
+
+                rayCast(inimigo[i], player.ent, map);
                 //if (distancia < 10){
                     // DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
-                    /*  if(!persegue(player, &inimigo[i], map, distancia)){
+                      if(!persegue(player, &inimigo[i], map, distancia)){
                         if(enemy_steps > 0){
                             movimentar(&inimigo[i], map);
                             enemy_steps--;
                         }
-                    }  */
+                    }  
                 //}
-                 /* else{
-                    if(enemy_steps > 0){
+                  //else{
+                     /* if(enemy_steps > 0){
                         movimentar(&inimigo[i], map);
-                        enemy_steps--;
-                    }
-                }  */
+                        enemy_steps--; */
+                   // }
+                //}  
             }
             inimigo[i].collided = false;            
         }
