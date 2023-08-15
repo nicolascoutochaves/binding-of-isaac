@@ -36,7 +36,6 @@
 #define MAX_BOMBS 20
 //          Define o n maximo de mapas do modo normal:
 #define MAX_MAPS 9 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
-
 Texture2D spritesheet;
 
 typedef struct Entidades
@@ -70,9 +69,53 @@ typedef struct Map
     Player player;
     Entidade inimigo[MAX_INIMIGOS];
 } Map;
-
+typedef struct
+{
+    int pos_inicial_j ;
+    int lvl_atual ;
+    int placemeant;
+    int vidas;
+    int pos_enemy1;
+    int pos_enemy2;
+} ESTADO; // Declarei essa struct so para implementar o save do jogo, assim que possivel organizo certinho
+//----------------------------------------------------------
+//------------funcao saveGame-------------------------------
+int SalvaEstado(char nome[],ESTADO a)
+{
+FILE *arq;
+    arq = fopen(nome, "wb");
+    if(arq == NULL)
+    {
+        puts("erro de escrita\n");
+       return 0;
+    }
+    while(!feof(arq))
+    {
+        fwrite(&a,sizeof(ESTADO),1,arq);
+         return 1;
+    }
+    fclose(arq);
+}
+//----------------------------------------------------------
+//------------funcao saveGame-------------------------------
+int LeEstado(char nome[],ESTADO *a)
+{
+    FILE *arq;
+    arq = fopen(nome, "rb");
+    if(arq==NULL)
+    {
+        puts("erro de leitura ao ler o arquivo\n");
+        return 0;
+    }
+    else
+    {
+        fread(a,sizeof(ESTADO),1,arq);
+         return 1;
+    }
+    fclose(arq);
+}
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
-void menu(char *state, int were_played);
+void menu(char *state, int were_played, char nome[],ESTADO a);
 
 int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy)
 {
@@ -159,7 +202,7 @@ void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH])
 }
 int modo_jogo = 1;   // 0 e padrao, 1 e a geracao aleatoria
 int current_map = 1; // variavel global por enquanto, pra nao precisar passar o mapa atual por referencia para a funcao.
-void novo_jogo(char *state)
+void novo_jogo(char *state, char nome[], ESTADO a)
 {
 
     *state = '\0';
@@ -286,7 +329,7 @@ void novo_jogo(char *state)
         if (IsKeyPressed(KEY_ESCAPE))
         {
             *state = 'e';
-            menu(state, 1);
+            menu(state, 1,nome, a);
             //  Time(0.2);
         }
         // Define as direcoes dx e dy do jogador:
@@ -311,7 +354,7 @@ void novo_jogo(char *state)
                 (inimigo[i].y - inimigo[i].dy == player.ent.y && inimigo[i].x == player.ent.x))
             {
                 inimigo[i].collided = true;
-                
+
             }
         }
 
@@ -378,27 +421,32 @@ void novo_jogo(char *state)
     {
         if (current_map < MAX_MAPS)
             current_map++;
-        novo_jogo(state);
+        novo_jogo(state,nome, a );
     }
 
     *state = 'q';
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void carregar_jogo(char *state)
+void carregar_jogo(char *state,char nome, ESTADO *a)
 {
+    while (*state == 's'){ LeEstado(nome,&a);} //LeSave
     *state = '\0';
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void salvar_jogo(char *state)
+void salvar_jogo(char *state,char nome[], ESTADO a)
 {
-    char text[50];
+   char text[50];
+    FILE *arq;
     while (*state == 's')
     {
+
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        strcpy(text, "Jogo salvo com sucesso!");
+        SalvaEstado(nome, a);
+        if(SalvaEstado){ strcpy(text, "Jogo salvo com sucesso!");} // se der pra salvar o arquivo aparecerá a msg
+        else{ strcpy(text, "Erro ao salvar o jogo!");}// caso contrario printar essa msg
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 2 - FONT_SIZE, FONT_SIZE, BLACK);
 
         strcpy(text, "Aperte ESC para continuar");
@@ -408,11 +456,11 @@ void salvar_jogo(char *state)
             *state = '\0';
         EndDrawing();
     }
-    menu(state, 1);
+    menu(state,1,nome,a);
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void sair_jogo(char *state)
+void sair_jogo(char *state,char nome[], ESTADO a )
 {
     char text[50];
     while (*state != 'q')
@@ -425,7 +473,7 @@ void sair_jogo(char *state)
 
         if (IsKeyPressed(KEY_S))
         {
-            salvar_jogo(state);
+            SalvaEstado(nome, a);// caso for pressionado sim, salvar o jogo;
             *state = 'q';
         }
         else if (IsKeyPressed(KEY_N))
@@ -443,29 +491,29 @@ void voltar_jogo(char *state)
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void menu(char *state, int were_played)
+void menu(char *state, int were_played, char nome[], ESTADO a)
 { // Menu do jogo
     char text[100] = "";
 
     while (*state == '\0' || *state == 'e')
-    {   
+    {
         if (IsKeyPressed(KEY_N)){
             *state = 'a';
         }
         if (IsKeyPressed(KEY_C))
         {
             *state = 'c';
-            carregar_jogo(state);
+            carregar_jogo(state,nome ,&a);
         }
         if (IsKeyPressed(KEY_S) && were_played)
         {
             *state = 's';
-            salvar_jogo(state);
+            salvar_jogo(state,nome,a);
         }
         if (IsKeyPressed(KEY_Q))
         {
             *state = '0'; // atribui a '0' para poder sair do loop do menu.
-            sair_jogo(state);
+            sair_jogo(state,nome,a);
         }
         if (IsKeyPressed(KEY_V) && were_played)
         {
@@ -497,7 +545,7 @@ void menu(char *state, int were_played)
         EndDrawing();
     }
     while(*state == 'a'){
-        
+
             strcpy(text, "Selecione o Modo de jogo:");
             DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA/4 -FONT_SIZE, FONT_SIZE, BLACK);
             strcpy(text, "0 - padrao");
@@ -509,14 +557,14 @@ void menu(char *state, int were_played)
                 modo_jogo = 0;
                 current_map = 1;
                 *state = 'n';
-                novo_jogo(state);
+                novo_jogo(state,nome, a );
                 were_played = 1;
             }
             if(IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_KP_1)){
                 modo_jogo = 1;
                 current_map = 1;
                 *state = 'n';
-                novo_jogo(state);
+                novo_jogo(state,nome,a);
                 were_played = 1;
             }
             BeginDrawing();
@@ -529,13 +577,25 @@ void menu(char *state, int were_played)
 int main(void)
 {                      //
     char state = '\0'; // Estados do jogo
+     ESTADO a,estadoSalvo;
+    char nome[60];
+
+     // hardcoded
+
+
+    printf("insira o nome do seu arquivo\n");
+    scanf("%s",&nome);
 
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
+
     SetTargetFPS(20);
+    SalvaEstado(nome,estadoSalvo);
+    LeEstado(nome,&a);
+
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
 
     while (state == '\0' || state == 'e')
-        menu(&state, 0);
+        menu(&state, 0,nome,a);
 
     CloseWindow(); // Fecha a janela e o contexto OpenGL
     return 0;
