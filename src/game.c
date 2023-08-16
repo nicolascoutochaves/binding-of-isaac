@@ -77,23 +77,23 @@ void menu(char *state, int were_played);
 
 void redefineDeslocamento(Entidade *inimigo, int *steps)
 {   
-    int s = 0;
+    int s = 0;    
+    while(s == 0){
+        s = 1 - (rand() % 3);
+    }
+
     inimigo->dx = 0;
     inimigo->dy = 0;
-    *steps = 0;
-    while(*steps == 0)
-        *steps = (int)GetFrameTime()*400 + (rand() % (int)(GetFrameTime()*700)); //Define um tempo para o inimigo se movimentar
-    
-    while(s == 0)
-        s = 1 - (rand() % 3);
-        
-    if(s == 1)
+    if(s == 1){
         while (inimigo->dx == 0)
             inimigo->dx = 1 - (rand() % 3);
-    else
+    }
+    else{
         while(inimigo->dy == 0)
             inimigo->dy = 1 - (rand() % 3);
-        
+    }
+    if(*steps == 0)
+        *steps = (int)GetFrameTime()*400 + (rand() % (int)(GetFrameTime()*700)); //Define um tempo para o inimigo se movimentar
 }
 
 
@@ -115,133 +115,69 @@ void movimentar(Entidade *entidade, int map[MAP_HEIGHT][MAP_WIDTH])
         entidade->y -= VELOCIDADE * entidade->dy;
 
 }
-//Funcao que recebe uma entidade e verifica quantas paredes existem na direcao que a entidade esta "olhando"
-int rayCast(Entidade ent, Entidade object, int map[MAP_HEIGHT][MAP_WIDTH]){
-    int lineofsight = sqrt(pow(ent.x - object.x, 2) + pow(ent.y - object.y, 2));
-    int sight = 0;
-    int seen_objectsx = 0;
-    int seen_objectsy = 0;
-     int seen_objects = 0;
-    int side = 1;
+//Funcao que recebe duas entidades e verifica se o vetor posicao relativa das duas estao sendo obstruidos por paredes
+int rayCast(Entidade a, Entidade b, int map[MAP_HEIGHT][MAP_WIDTH]){
+    int abx = b.x - a.x; //vetor posicao dos dois objetos no eixo x
+    int aby = b.y - a.y; //vetor posicao dos dois objetos no eixo y
+    int r = sqrt(pow(abx, 2) + pow(aby,2)); //distancia entre os dois pontos
+    int sight = 1;
+    int seen_objects = 0;
     char text[100];
-    //Eixo X
-    side = ent.dx;
-    while(sight < lineofsight && ent.x+sight*side < MAP_WIDTH && ent.x+sight*side >= 0){
-        if(!map[ent.y][ent.x+sight*side]){
-            seen_objectsx++;
-        }
-        sight++;
-    }
-    sight = 0;
-    //Eixo Y
-    side = ent.dy;
-    while(sight < lineofsight && ent.y-sight*side < MAP_HEIGHT && ent.y-sight*side >= 0){
-        if(!map[ent.y-sight*side][ent.x]){
-            seen_objectsy++;
-        }
-        sight++;
-    }
-    
-    sprintf(text, "N objetos eixo x: %d", seen_objectsx);
-    DrawText(text, LARGURA/2-200, ALTURA/2, FONT_SIZE, RED);
-    sprintf(text, "N objetos eixo y: %d", seen_objectsy);
-    DrawText(text, LARGURA/2-200, ALTURA/2+100, FONT_SIZE, RED);
+   
+    while(sight < r){
+        //
+        if(abx != 0 && abs(b.x - a.x) > 0) b.x -= (abs(abx)/abx);
+        if(aby != 0 && abs(b.y - a.y) > 0) b.y -= (abs(aby)/aby);
 
-    seen_objects = seen_objectsx + seen_objectsy;
+        int rx = a.x + (b.x - a.x); //posicao x dos quadrados da posicao relativa
+        int ry = a.y + (b.y - a.y); //posicao y dos quadrados da posicao relativa
+        
+        //DrawRectangle(rx*FATORX + MARGIN_LEFT, ry*FATORY + MARGIN_TOP, 20, 20, BLUE);//Desenha os quadrados que representam a posicao relatica entre ent e object para fim de testes
+
+        if(!map[ry][rx]){
+            seen_objects++;
+        }
+        sight++;
+    }
+    //Testa e printa na tela os objetos entre a posicao das duas entidades
     sprintf(text, "N objetos na direcao atual: %d", seen_objects);
-    DrawText(text, LARGURA/2-200, ALTURA/2+150, FONT_SIZE, RED); 
+    DrawText(text, LARGURA/2-200, ALTURA/2, FONT_SIZE, RED); 
 
     return seen_objects;
 
 }
-int persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH], int distance)
-{       
-        int distancex = sqrt(pow(player.ent.x - inimigo->x, 2));
-        int distancey = sqrt(pow(player.ent.y - inimigo->y, 2));
-        int count, countwall = 0;
-        bool perseguiu = false;
-        inimigo->canChase = false;
-        
-         if (((player.ent.x) > (inimigo->x)))
+void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH])
+{
+    char text[100];
+    strcpy(text, "Perseguindo!");
+    DrawText(text, LARGURA/2-200, ALTURA/2-150, FONT_SIZE, BLUE);
+    if (map[inimigo->y-inimigo->dy][inimigo->x+inimigo->dx])
+    {  
+        if (((player.ent.x) > (inimigo->x)))
         {
-            
-            while(count < distancex){
-                if(map[inimigo->y][inimigo->x+count] == 0)
-                    countwall++;
-                
-                count++;
-            }
-            if(countwall == 0)
-                    inimigo->canChase = true;
-            else
-                inimigo->canChase = false;
-
-            if(inimigo->canChase){
-                inimigo->dx = 1;
-                movimentar(inimigo, map);
-                perseguiu = true;
-            }
+            inimigo->dx = 1;
+            inimigo->x += VELOCIDADE*inimigo->dx;
         }
 
         else if (((player.ent.x) < (inimigo->x)))
         {
-            
-            while(count < distancex){
-                if(map[inimigo->y][inimigo->x-count] == 0)
-                    countwall++;
-                
-                count++;
-            }
-            if(countwall == 0)
-                    inimigo->canChase = true;
-            else
-                inimigo->canChase = false;
-
-            if(inimigo->canChase){
-                inimigo->dx = -1;
-                movimentar(inimigo, map);
-                perseguiu = true;
-            }
-        } 
+            inimigo->dx = -1;
+            inimigo->x += VELOCIDADE*inimigo->dx;            
+        }
 
         else if (((player.ent.y) < (inimigo->y)))
         {
-            while(count < distancey){
-                if(map[inimigo->y-count][inimigo->x] == 0)
-                    countwall++;
-                count++;
-            }
-            if(countwall == 0)
-                    inimigo->canChase = true;
-            else 
-                inimigo->canChase = false;
-            
-            if(inimigo->canChase){
-                inimigo->dy = 1;
-                movimentar(inimigo, map);
-                perseguiu = true;
-            }
+            inimigo->dy = 1;
+            inimigo->y -= VELOCIDADE*inimigo->dy;            
         }
 
         else if (((player.ent.y) > (inimigo->y)))
         {
-            while(count < distancey){
-                if(map[inimigo->y+count][inimigo->x] == 0)
-                    countwall++;
-                count++;
-            }
-            if(countwall == 0)
-                    inimigo->canChase = true;
-            else
-                inimigo->canChase = false;
-
-            if(inimigo->canChase){
-                inimigo->dy = -1;
-                movimentar(inimigo, map);
-                perseguiu = true;
-            }
+            inimigo->dy = -1;
+            inimigo->y -= VELOCIDADE*inimigo->dy;
         }
-        return perseguiu;
+        
+    }
 }
 int modo_jogo = 1;   // 0 e padrao, 1 e a geracao aleatoria
 int current_map = 1; // variavel global por enquanto, pra nao precisar passar o mapa atual por referencia para a funcao.
@@ -427,24 +363,22 @@ void novo_jogo(char *state)
             if(enemy_steps == 0)
                 redefineDeslocamento(&inimigo[i], &enemy_steps);
 
-            if (inimigo[i].collided)
+             if (inimigo[i].collided)
             {
-                inimigo[i].canChase = false;
                 redefineDeslocamento(&inimigo[i], &enemy_steps);   
-            } else{
-                int distancia = (sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow((player.ent.y - inimigo[i].y), 2)));
-                 //inimigo[i].canChase = true;
-                
+            }
+            if(rayCast(inimigo[i], player.ent, map) != 0) //Chama a funcao que verifica se tem paredes entre o inimigo e o jogador
+                inimigo[i].canChase = false;
 
-                rayCast(inimigo[i], player.ent, map);
-                //if (distancia < 10){
-                    // DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
-                      if(!persegue(player, &inimigo[i], map, distancia)){
-                        if(enemy_steps > 0){
-                            movimentar(&inimigo[i], map);
-                            enemy_steps--;
-                        }
-                    }  
+            if(inimigo[i].canChase && !inimigo[i].collided)
+            {
+                persegue(player, &inimigo[i], map);
+            } else{
+                if(enemy_steps > 0){
+                    movimentar(&inimigo[i], map);
+                    enemy_steps--;
+                }
+            } 
                 //}
                   //else{
                      /* if(enemy_steps > 0){
@@ -452,7 +386,7 @@ void novo_jogo(char *state)
                         enemy_steps--; */
                    // }
                 //}  
-            }
+            inimigo[i].canChase = true;
             inimigo[i].collided = false;            
         }
         
@@ -462,10 +396,7 @@ void novo_jogo(char *state)
         BeginDrawing();            // Inicia o ambiente de desenho na tela
         ClearBackground(RAYWHITE); // Limpa a tela e define cor de fundo
         DrawRectangle(player.ent.x * FATORX + MARGIN_LEFT, player.ent.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
-        for (i = 0; i < n_inimigos; i++)
-        {
-            DrawRectangle(inimigo[i].x * FATORX + MARGIN_LEFT, inimigo[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
-        }
+    
         // Desenha o mapa na tela:
         for (i = 0; i < MAP_HEIGHT; i++)
         {
@@ -475,6 +406,12 @@ void novo_jogo(char *state)
                     DrawRectangle(j * FATORX + MARGIN_LEFT, i * FATORY + MARGIN_TOP, LADOX, LADOY, PURPLE);
             }
         }
+          for (i = 0; i < n_inimigos; i++)
+        {
+            rayCast(inimigo[i], player.ent, map);
+            DrawRectangle(inimigo[i].x * FATORX + MARGIN_LEFT, inimigo[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
+        }
+        
         DrawRectangleRec(portal, YELLOW); // Portal
         EndDrawing();                     // Finaliza o ambiente de desenho na tela
     }
