@@ -27,6 +27,14 @@ int canGenerate(int i, int j, int dx, int dy, int width, int height) {
     return generate;
 }
 
+long long current_timestamp() { //Pega o tempo atual em ms, para que a seed do rand() mude mais rapido
+    struct timeval te; 
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // calculate milliseconds
+    // printf("milliseconds: %lld\n", milliseconds);
+    return milliseconds;
+}
+
 void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
 {
     int i, j, k, l; //Variaveis de controle da matriz
@@ -34,7 +42,7 @@ void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
     int s_ant = s; //Sentido anterior(s indica se esta movendo no eixo x ou no eixo y)
     int tunnels = 0, steps = 0, count_padding = PADDING; // Variaveis de controle dos loops
 
-    srand(time(NULL)); //Gera a seed da funcao rand() usando o tempo do sistema
+    srand(current_timestamp()); //Gera a seed da funcao rand() usando o tempo do sistema
 
 /*  Define a posicao i e j da matriz para que o tunel sempre comece a partir da posicao m[1][MAP_WIDTH - 2], que e a posicao do portal.
     Dessa forma garantimos que sempre havera um caminho livre ate o portal.

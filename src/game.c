@@ -35,7 +35,7 @@
 #define MAX_TRAPS 20
 #define MAX_BOMBS 20
 //          Define o n maximo de mapas do modo normal:
-#define MAX_MAPS 9 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
+#define MAX_MAPS 10 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
 
 Texture2D spritesheet;
 
@@ -44,6 +44,7 @@ typedef struct Entidades
     int x, y;   // posicao x e y
     int dx, dy; // direcoes
     int vida;
+    bool isPlayer;
     bool active; // Retorna se esta vivo ou morto
     bool collided;
     bool canChase;
@@ -75,27 +76,30 @@ typedef struct Map
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
 void menu(char *state, int were_played);
 
+
 void redefineDeslocamento(Entidade *inimigo, int *steps)
-{   
-    int s = 0;    
-    while(s == 0){
+{
+    int s = 0;
+    while (s == 0)
+    {
         s = 1 - (rand() % 3);
     }
 
     inimigo->dx = 0;
     inimigo->dy = 0;
-    if(s == 1){
+    if (s == 1)
+    {
         while (inimigo->dx == 0)
             inimigo->dx = 1 - (rand() % 3);
     }
-    else{
-        while(inimigo->dy == 0)
+    else
+    {
+        while (inimigo->dy == 0)
             inimigo->dy = 1 - (rand() % 3);
     }
-    if(*steps == 0)
-        *steps = (int)GetFrameTime()*400 + (rand() % (int)(GetFrameTime()*700)); //Define um tempo para o inimigo se movimentar
+    if (*steps == 0)
+        *steps = (int)GetFrameTime() * 500 + (rand() % (int)(GetFrameTime() * 700)); // Define um tempo para o inimigo se movimentar
 }
-
 
 void movimentar(Entidade *entidade, int map[MAP_HEIGHT][MAP_WIDTH])
 {
@@ -104,80 +108,79 @@ void movimentar(Entidade *entidade, int map[MAP_HEIGHT][MAP_WIDTH])
         (map[entidade->y][entidade->x - 1] == 0 && entidade->dx == -1))
     {
         entidade->collided = true;
-    } else
+    }
+    else
         entidade->x += VELOCIDADE * entidade->dx;
 
     if ((map[entidade->y - 1][entidade->x] == 0 && entidade->dy == 1) ||
         (map[entidade->y + 1][entidade->x] == 0 && entidade->dy == -1))
     {
-        entidade->collided = true;       
-    } else
+        entidade->collided = true;
+    }
+    else
         entidade->y -= VELOCIDADE * entidade->dy;
 
 }
-//Funcao que recebe duas entidades e verifica se o vetor posicao relativa das duas estao sendo obstruidos por paredes
-int rayCast(Entidade a, Entidade b, int map[MAP_HEIGHT][MAP_WIDTH]){
-    int abx = b.x - a.x; //vetor posicao dos dois objetos no eixo x
-    int aby = b.y - a.y; //vetor posicao dos dois objetos no eixo y
-    int r = sqrt(pow(abx, 2) + pow(aby,2)); //distancia entre os dois pontos
+// Funcao que recebe duas entidades e verifica se o vetor posicao relativa das duas estao sendo obstruidos por paredes
+int rayCast(Entidade a, Entidade b, int map[MAP_HEIGHT][MAP_WIDTH])
+{
+    int abx = b.x - a.x;                     // vetor posicao dos dois objetos no eixo x
+    int aby = b.y - a.y;                     // vetor posicao dos dois objetos no eixo y
+    int r = sqrt(pow(abx, 2) + pow(aby, 2)); // distancia entre os dois pontos
     int sight = 1;
     int seen_objects = 0;
-    char text[100];
-   
-    while(sight < r){
+
+    while (sight < r)
+    {
         //
-        if(abx != 0 && abs(b.x - a.x) > 0) b.x -= (abs(abx)/abx);
-        if(aby != 0 && abs(b.y - a.y) > 0) b.y -= (abs(aby)/aby);
+        if (abx != 0 && abs(b.x - a.x) > 0)
+            b.x -= (abs(abx) / abx);
+        if (aby != 0 && abs(b.y - a.y) > 0)
+            b.y -= (abs(aby) / aby);
 
-        int rx = a.x + (b.x - a.x); //posicao x dos quadrados da posicao relativa
-        int ry = a.y + (b.y - a.y); //posicao y dos quadrados da posicao relativa
-        
-        //DrawRectangle(rx*FATORX + MARGIN_LEFT, ry*FATORY + MARGIN_TOP, 20, 20, BLUE);//Desenha os quadrados que representam a posicao relatica entre ent e object para fim de testes
+        int rx = a.x + (b.x - a.x); // posicao x dos quadrados da posicao relativa
+        int ry = a.y + (b.y - a.y); // posicao y dos quadrados da posicao relativa
 
-        if(!map[ry][rx]){
+        // DrawRectangle(rx*FATORX + MARGIN_LEFT, ry*FATORY + MARGIN_TOP, 20, 20, BLUE);//Desenha os quadrados que representam a posicao relatica entre ent e object para fim de testes
+
+        if (!map[ry][rx])
+        {
             seen_objects++;
         }
         sight++;
     }
-    //Testa e printa na tela os objetos entre a posicao das duas entidades
-    sprintf(text, "N objetos na direcao atual: %d", seen_objects);
-    DrawText(text, LARGURA/2-200, ALTURA/2, FONT_SIZE, RED); 
+    // Testa e printa na tela os objetos entre a posicao das duas entidades
+    // char text[100];
+    // sprintf(text, "N objetos na direcao atual: %d", seen_objects);
+    // DrawText(text, LARGURA/2-200, ALTURA/2, FONT_SIZE, RED);
 
     return seen_objects;
-
 }
 void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH])
 {
     char text[100];
     strcpy(text, "Perseguindo!");
-    DrawText(text, LARGURA/2-200, ALTURA/2-150, FONT_SIZE, BLUE);
-    if (map[inimigo->y-inimigo->dy][inimigo->x+inimigo->dx])
-    {  
-        if (((player.ent.x) > (inimigo->x)))
-        {
-            inimigo->dx = 1;
-            inimigo->x += VELOCIDADE*inimigo->dx;
-        }
+    DrawText(text, LARGURA / 2 - 200, ALTURA / 2 - 150, FONT_SIZE, BLUE);
 
-        else if (((player.ent.x) < (inimigo->x)))
-        {
-            inimigo->dx = -1;
-            inimigo->x += VELOCIDADE*inimigo->dx;            
-        }
-
-        else if (((player.ent.y) < (inimigo->y)))
-        {
-            inimigo->dy = 1;
-            inimigo->y -= VELOCIDADE*inimigo->dy;            
-        }
-
-        else if (((player.ent.y) > (inimigo->y)))
-        {
-            inimigo->dy = -1;
-            inimigo->y -= VELOCIDADE*inimigo->dy;
-        }
-        
+    if (((player.ent.x) > (inimigo->x)))
+    {
+        inimigo->dx = 1;
     }
+
+    else if (((player.ent.x) < (inimigo->x)))
+    {
+        inimigo->dx = -1;
+    }
+    else if (((player.ent.y) < (inimigo->y)))
+    {
+        inimigo->dy = 1;
+    }
+
+    else if (((player.ent.y) > (inimigo->y)))
+    {
+        inimigo->dy = -1;
+    }
+    movimentar(inimigo, map);
 }
 int modo_jogo = 1;   // 0 e padrao, 1 e a geracao aleatoria
 int current_map = 1; // variavel global por enquanto, pra nao precisar passar o mapa atual por referencia para a funcao.
@@ -196,9 +199,8 @@ void novo_jogo(char *state)
     Player player = {0};
     Entidade inimigo[MAX_INIMIGOS];
     Map Map;
-    Rectangle portal;
+    
 
-    srand(time(NULL)); //Gera a seed da funcao rand() usando o tempo do sistema
     if (!modo_jogo)
     {                                                          // Se o modo de jogo for 1, gera o mapa e os spawns aleatoriamente, se nao, carrega os arquivos
         sprintf(filename, "../mapas/mapa%d.txt", current_map); // define o caminho do mapa e salva na variavel "filename", para que possamos alterar o nome do mapa dinamicamente (pois na funcao fopen nao pode passar paramentros para formatacao)
@@ -280,7 +282,7 @@ void novo_jogo(char *state)
             {
                 x = rand() % MAP_WIDTH - 1;
                 y = rand() % (MAP_HEIGHT - 1) / 2;
-            }
+            }            
             inimigo[i].x = x;
             inimigo[i].y = y;
             x = 0;
@@ -292,18 +294,18 @@ void novo_jogo(char *state)
             x = rand() % MAP_WIDTH - 1;
             y = (MAP_HEIGHT - 1) - rand() % (MAP_HEIGHT / 2); // Player spawna na metade de baixo do mapa
         }
-
         player.ent.x = x;
         player.ent.y = y;
     }
-    for (i = 0; i < n_inimigos; i++)
+    player.ent.isPlayer = true;
+    for (i = 0; i < n_inimigos; i++){
+        inimigo[i].isPlayer = false;
         redefineDeslocamento(&inimigo[i], &enemy_steps);
-
+    }
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------
     while (!WindowShouldClose() && *state != 'q' && *state != 'n' && *state != 'p')
     { //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
-
         //                  JOGADOR:
         // Verifica se o usuario apertou ESC
         if (IsKeyPressed(KEY_ESCAPE))
@@ -312,7 +314,7 @@ void novo_jogo(char *state)
             menu(state, 1);
             //  Time(0.2);
         }
-        
+
         // Define as direcoes dx e dy do jogador:
         if (IsKeyDown(KEY_D))
             player.ent.dx = 1;
@@ -322,7 +324,6 @@ void novo_jogo(char *state)
             player.ent.dy = 1;
         if (IsKeyDown(KEY_S))
             player.ent.dy = -1;
-
 
         // Colisoes com os inimigos
         for (i = 0; i < n_inimigos; i++)
@@ -350,7 +351,6 @@ void novo_jogo(char *state)
         {
             *state = 'p';
         }
-       
 
         if (!player.ent.collided)
             movimentar(&player.ent, map);
@@ -360,43 +360,46 @@ void novo_jogo(char *state)
 
         for (i = 0; i < n_inimigos; i++)
         {
-            if(enemy_steps == 0)
+    
+            if (enemy_steps == 0)
                 redefineDeslocamento(&inimigo[i], &enemy_steps);
 
-             if (inimigo[i].collided)
+            if (inimigo[i].collided)
             {
-                redefineDeslocamento(&inimigo[i], &enemy_steps);   
+                redefineDeslocamento(&inimigo[i], &enemy_steps);
             }
-            if(rayCast(inimigo[i], player.ent, map) != 0) //Chama a funcao que verifica se tem paredes entre o inimigo e o jogador
+            if (rayCast(inimigo[i], player.ent, map) != 0)
+            { // Chama a funcao que verifica se tem paredes entre o inimigo e o jogador
                 inimigo[i].canChase = false;
+            }
 
-            if(inimigo[i].canChase && !inimigo[i].collided)
+            if (inimigo[i].canChase && !inimigo[i].collided)
             {
                 persegue(player, &inimigo[i], map);
-            } else{
-                if(enemy_steps > 0){
+            }
+            else
+            {
+                
+                
+                if (enemy_steps > 0)
+                {
                     movimentar(&inimigo[i], map);
+                    
                     enemy_steps--;
                 }
-            } 
-                //}
-                  //else{
-                     /* if(enemy_steps > 0){
-                        movimentar(&inimigo[i], map);
-                        enemy_steps--; */
-                   // }
-                //}  
+            }
             inimigo[i].canChase = true;
-            inimigo[i].collided = false;            
+            inimigo[i].collided = false;
         }
-        
+
         //---------------------------------------------------------------------------
         //---------------------------------------------------------------------------
         //                          DESENHAR JOGO:
         BeginDrawing();            // Inicia o ambiente de desenho na tela
         ClearBackground(RAYWHITE); // Limpa a tela e define cor de fundo
-        DrawRectangle(player.ent.x * FATORX + MARGIN_LEFT, player.ent.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
     
+        DrawRectangle(player.ent.x * FATORX + MARGIN_LEFT, player.ent.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
+
         // Desenha o mapa na tela:
         for (i = 0; i < MAP_HEIGHT; i++)
         {
@@ -406,13 +409,14 @@ void novo_jogo(char *state)
                     DrawRectangle(j * FATORX + MARGIN_LEFT, i * FATORY + MARGIN_TOP, LADOX, LADOY, PURPLE);
             }
         }
-          for (i = 0; i < n_inimigos; i++)
+        for (i = 0; i < n_inimigos; i++)
         {
             rayCast(inimigo[i], player.ent, map);
             DrawRectangle(inimigo[i].x * FATORX + MARGIN_LEFT, inimigo[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
         }
-        
-        DrawRectangleRec(portal, YELLOW); // Portal
+        spritesheet = LoadTexture("../sprites/spritesheet.png");
+        DrawTexture(spritesheet, player.ent.x*FATORX+MARGIN_LEFT, player.ent.y*FATORY+MARGIN_TOP, RAYWHITE);
+        DrawRectangle(Map.portal.x * FATORX + MARGIN_LEFT, Map.portal.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GRAY); // Portal
         EndDrawing();                     // Finaliza o ambiente de desenho na tela
     }
 
@@ -579,7 +583,7 @@ int main(void)
     char state = '\0'; // Estados do jogo
 
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
-    SetTargetFPS(20);
+    SetTargetFPS(24);
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
 
     while (state == '\0' || state == 'e')
