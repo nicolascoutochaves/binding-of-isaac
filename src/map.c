@@ -3,7 +3,7 @@ Esse algoritmo pega um ponto aleatorio ou nao do mapa e comeca a gerar caminhos 
 */
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
 
 
 //////////////////////////////////////////////////////
@@ -35,14 +35,16 @@ long long current_timestamp() { //Pega o tempo atual em ms, para que a seed do r
     return milliseconds;
 }
 
-void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
+int generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
 {
     int i, j, k, l; //Variaveis de controle da matriz
     int s = 0, dx = 0, dy = 0; //Variaveis que definem a direcao e os sentidos
     int s_ant = s; //Sentido anterior(s indica se esta movendo no eixo x ou no eixo y)
     int tunnels = 0, steps = 0, count_padding = PADDING; // Variaveis de controle dos loops
-
-    srand(current_timestamp()); //Gera a seed da funcao rand() usando o tempo do sistema
+    long long seed = current_timestamp();
+    printf("Generating map...\n");
+    srand(seed); //Gera a seed da funcao rand() usando o tempo do sistema
+    printf("Map seed: %lld\n", seed);
 
 /*  Define a posicao i e j da matriz para que o tunel sempre comece a partir da posicao m[1][MAP_WIDTH - 2], que e a posicao do portal.
     Dessa forma garantimos que sempre havera um caminho livre ate o portal.
@@ -133,13 +135,14 @@ void generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
 
         tunnels++;
     }
-
-
+    
+    return 1;
 }
 
 void printMap(int m[MAP_HEIGHT][MAP_WIDTH]){
     int i, j;
     //Imprime a matriz, substituindo os valores '1' para espacos em branco e '0' para '#'
+    
     for (i=0; i<MAP_HEIGHT; i++) {
         for (j=0; j<MAP_WIDTH; j++) {
             if(m[i][j] == 1)
@@ -149,5 +152,7 @@ void printMap(int m[MAP_HEIGHT][MAP_WIDTH]){
         }
         printf("\n");
     }
+    printf("\n");
+
 
 }

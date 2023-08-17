@@ -43,8 +43,8 @@ typedef struct Entidades
 {               // Entidades means enemys or players
     int x, y;   // posicao x e y
     int dx, dy; // direcoes
-    int vida;
-    bool isPlayer;
+    int health; //Saude
+    int lives; //Vidas
     bool active; // Retorna se esta vivo ou morto
     bool collided;
     bool canChase;
@@ -55,6 +55,7 @@ typedef struct Player
 {
     Entidade ent;
     int pontuacao;
+    int bombas[MAX_BOMBS];
 } Player;
 
 typedef struct ITEM
@@ -75,7 +76,6 @@ typedef struct Map
 
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
 void menu(char *state, int were_played);
-
 
 void redefineDeslocamento(Entidade *inimigo, int *steps)
 {
@@ -141,7 +141,7 @@ int rayCast(Entidade a, Entidade b, int map[MAP_HEIGHT][MAP_WIDTH])
         int rx = a.x + (b.x - a.x); // posicao x dos quadrados da posicao relativa
         int ry = a.y + (b.y - a.y); // posicao y dos quadrados da posicao relativa
 
-        // DrawRectangle(rx*FATORX + MARGIN_LEFT, ry*FATORY + MARGIN_TOP, 20, 20, BLUE);//Desenha os quadrados que representam a posicao relatica entre ent e object para fim de testes
+        //DrawRectangle(rx*FATORX + MARGIN_LEFT, ry*FATORY + MARGIN_TOP, 20, 20, BLUE);//Desenha os quadrados que representam a posicao relatica entre ent e object para fim de testes
 
         if (!map[ry][rx])
         {
@@ -158,10 +158,6 @@ int rayCast(Entidade a, Entidade b, int map[MAP_HEIGHT][MAP_WIDTH])
 }
 void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH])
 {
-    char text[100];
-    strcpy(text, "Perseguindo!");
-    DrawText(text, LARGURA / 2 - 200, ALTURA / 2 - 150, FONT_SIZE, BLUE);
-
     if (((player.ent.x) > (inimigo->x)))
     {
         inimigo->dx = 1;
@@ -186,28 +182,30 @@ int modo_jogo = 1;   // 0 e padrao, 1 e a geracao aleatoria
 int current_map = 1; // variavel global por enquanto, pra nao precisar passar o mapa atual por referencia para a funcao.
 void novo_jogo(char *state)
 {
-
     *state = '\0';
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
     FILE *maptxt;
     char filename[30];
     char c; // caracter do mapa
     int n_inimigos = 0;
+    int n_bombas = 0; //numero de bombas no mapa
+    int player_nbombs = 0; //numero de bombas com o jogador
+    int n_traps = 0;
     int enemy_steps;
     int i, j;
     int x = 0, y = 0;
     Player player = {0};
-    Entidade inimigo[MAX_INIMIGOS];
-    Map Map;
+    Entidade inimigo[MAX_INIMIGOS] = {0};
+    Map Map = {0};
     
-
+    puts("\nStarting new game...\n");
     if (!modo_jogo)
     {                                                          // Se o modo de jogo for 1, gera o mapa e os spawns aleatoriamente, se nao, carrega os arquivos
         sprintf(filename, "../mapas/mapa%d.txt", current_map); // define o caminho do mapa e salva na variavel "filename", para que possamos alterar o nome do mapa dinamicamente (pois na funcao fopen nao pode passar paramentros para formatacao)
 
         if (!(maptxt = fopen(filename, "r")))
         {
-            DrawText("Erro ao carregar o mapa!", LARGURA / 2 - MeasureText("Erro ao carregar o mapa!", FONT_SIZE), ALTURA, FONT_SIZE, RED);
+            printf("file open error with file ../mapas/map%d.txt\n", current_map);
             WaitTime(1);
             return;
         }
@@ -221,7 +219,7 @@ void novo_jogo(char *state)
                     fflush(maptxt);
                     if ((fread(&c, sizeof(char), 1, maptxt)) != 1)
                     {
-                        DrawText("Erro ao ler o mapa!", LARGURA / 2 - MeasureText("Erro ao ler o mapa!", FONT_SIZE), ALTURA, FONT_SIZE, RED);
+                        printf("map%d.txt read failure!\n", current_map);
                     }
                     else
                     {
@@ -244,9 +242,16 @@ void novo_jogo(char *state)
                             break;
                         case 'B':
                             map[i][j] = 4; // Bomba
+                            Map.bomb[n_bombas].x = j;
+                            Map.bomb[n_bombas].y = i;
+                            Map.bomb[n_bombas].active = true;
+                            n_bombas++;
                             break;
                         case 'X':
                             map[i][j] = 5; // Armadilha
+                            Map.trap[n_traps].x = j;
+                            Map.trap[n_traps].y = i;
+                            n_traps++;
                             break;
                         case 'P':
                             map[i][j] = 6; // Portal
@@ -272,36 +277,67 @@ void novo_jogo(char *state)
         int difficulty = 1;
         if (n_inimigos > MAX_INIMIGOS)
             n_inimigos = MAX_INIMIGOS;
-        n_inimigos = 1 + (difficulty * current_map);
-        generateMap(map);
+        n_inimigos = (difficulty * current_map);
+        n_bombas = (current_map * n_inimigos)/(difficulty);
+        n_traps = (current_map * difficulty)*2;
+        if(generateMap(map)){
+            puts("Map generated sucessfully!");
+        } else
+            puts("Map generation failure");
 
         for (i = 0; i < n_inimigos; i++)
         {
             // Spawn dos Inimigos
             while (map[y][x] == 0)
             {
-                x = rand() % MAP_WIDTH - 1;
-                y = rand() % (MAP_HEIGHT - 1) / 2;
+                x = 3 + (rand() % MAP_WIDTH - 3);
+                y = 3 + (rand() % (MAP_HEIGHT - 3) / 2);
             }            
             inimigo[i].x = x;
             inimigo[i].y = y;
             x = 0;
             y = 0;
         }
+        puts("Setted enemies spawns");
         // Spawn do jogador
+        int count_avaible_cells = 0;
         while (map[y][x] == 0)
         {
-            x = rand() % MAP_WIDTH - 1;
-            y = (MAP_HEIGHT - 1) - rand() % (MAP_HEIGHT / 2); // Player spawna na metade de baixo do mapa
+            x = 3 + (rand() % MAP_WIDTH - 3);
+            for(i = (int)(MAP_HEIGHT/2); i < MAP_HEIGHT; i++){
+                for(j = 0; j < MAP_WIDTH; j++){
+                    if(map[i][j])
+                        count_avaible_cells++;
+                }
+            }
+            if(!count_avaible_cells) //Se nao houver espaco na metade debaixo do mapa:
+                y = 3 + rand() % ((MAP_HEIGHT - 3) / 2); // Player spawna em qualquer posicao livre do mapa
+            else
+                y = ((MAP_HEIGHT - 3) - (3 + rand() % ((MAP_HEIGHT - 3) / 2))); // Player spawna na metade de baixo do mapa
         }
         player.ent.x = x;
         player.ent.y = y;
+        puts("Setted player spawn");
+        
+        //Portal
+
+         Map.portal.x = MAP_WIDTH-2;
+        Map.portal.y = 2 + (rand() % (MAP_HEIGHT-5));
+         while(!map[Map.portal.y][Map.portal.x-1]){
+            Map.portal.y = 2 + (rand() % (MAP_HEIGHT-5));
+        } 
+        map[Map.portal.y][Map.portal.x] = 6; 
+
+
     }
-    player.ent.isPlayer = true;
+
     for (i = 0; i < n_inimigos; i++){
-        inimigo[i].isPlayer = false;
         redefineDeslocamento(&inimigo[i], &enemy_steps);
     }
+    puts("enemies directions setted");
+
+    player.ent.health = 100;
+    player.ent.lives = 3;
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------
     while (!WindowShouldClose() && *state != 'q' && *state != 'n' && *state != 'p')
@@ -310,8 +346,12 @@ void novo_jogo(char *state)
         // Verifica se o usuario apertou ESC
         if (IsKeyPressed(KEY_ESCAPE))
         {
+            puts("Game paused");
             *state = 'e';
             menu(state, 1);
+            if(*state == 'g'){
+                return; //Remove um bug de o jogador iniciar um novo jogo pelo pause e morrer na primeira faze e nao exibir o game over
+            }
             //  Time(0.2);
         }
 
@@ -330,7 +370,8 @@ void novo_jogo(char *state)
         {
             if ((player.ent.x + player.ent.dx == inimigo[i].x && player.ent.y == inimigo[i].y) ||
                 (player.ent.y - player.ent.dy == inimigo[i].y && player.ent.x == inimigo[i].x))
-            {
+            {   
+                player.ent.health--;
                 player.ent.collided = true;
             }
             if ((inimigo[i].x + inimigo[i].dx == player.ent.x && inimigo[i].y == player.ent.y) ||
@@ -341,29 +382,40 @@ void novo_jogo(char *state)
         }
 
         Map.portal.active = true;
+
         // Colisoes com itens to mapa:
+
+        //Portal
         if (player.ent.x == Map.portal.x && player.ent.y == Map.portal.y && Map.portal.active)
             *state = 'p';
 
-        if (IsKeyPressed(KEY_R))
-            current_map = 0; // Reseta o mapa para testes
-        if (IsKeyPressed(KEY_SPACE))
-        {
-            *state = 'p';
+        //Bombas
+        for(i = 0; i < n_bombas; i++){
+            if (player.ent.x == Map.bomb[i].x && player.ent.y == Map.bomb[i].y && Map.bomb[i].active){
+                player.bombas[i]++;
+                player_nbombs ++;
+                Map.bomb[i].active = false;
+            }
+        }
+        //Traps
+        for(i = 0; i < n_traps; i++){
+            if(player.ent.x == Map.trap[i].x && player.ent.y == Map.trap[i].y){
+                player.ent.health--;
+            }
         }
 
+        //Movimentacao do jogador
         if (!player.ent.collided)
             movimentar(&player.ent, map);
         player.ent.collided = false;
         player.ent.dx = 0;
         player.ent.dy = 0;
 
+        //Movimentacao dos inimigos
         for (i = 0; i < n_inimigos; i++)
         {
-    
             if (enemy_steps == 0)
                 redefineDeslocamento(&inimigo[i], &enemy_steps);
-
             if (inimigo[i].collided)
             {
                 redefineDeslocamento(&inimigo[i], &enemy_steps);
@@ -372,25 +424,53 @@ void novo_jogo(char *state)
             { // Chama a funcao que verifica se tem paredes entre o inimigo e o jogador
                 inimigo[i].canChase = false;
             }
-
             if (inimigo[i].canChase && !inimigo[i].collided)
             {
                 persegue(player, &inimigo[i], map);
             }
             else
             {
-                
-                
                 if (enemy_steps > 0)
                 {
                     movimentar(&inimigo[i], map);
-                    
                     enemy_steps--;
                 }
             }
             inimigo[i].canChase = true;
             inimigo[i].collided = false;
         }
+
+        if(player.ent.health < 0){
+            player.ent.lives--;
+            player.ent.health = 100;
+        }
+
+
+
+        //printf("\nplayer health: %d\n", player.ent.health);
+        //printf("player lives: %d\n", player.ent.lives);
+        //printf("player bombs: %d\n", player_nbombs);
+
+
+        if (IsKeyPressed(KEY_R))
+            current_map = 0; // Reseta o mapa para testes
+        if (IsKeyPressed(KEY_SPACE))
+        {
+            *state = 'p';
+        }
+
+        //Game Over:
+        if(IsKeyPressed(KEY_MINUS))
+            player.ent.lives--;
+        if(!player.ent.lives){
+            char text[30];
+            *state = 'g';
+            strcpy(text, "Game Over!");
+            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE+10) / 2, ALTURA / 2 - FONT_SIZE+10, FONT_SIZE, RED);
+            return;
+        }
+
+
 
         //---------------------------------------------------------------------------
         //---------------------------------------------------------------------------
@@ -414,22 +494,30 @@ void novo_jogo(char *state)
             rayCast(inimigo[i], player.ent, map);
             DrawRectangle(inimigo[i].x * FATORX + MARGIN_LEFT, inimigo[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
         }
-        spritesheet = LoadTexture("../sprites/spritesheet.png");
-        DrawTexture(spritesheet, player.ent.x*FATORX+MARGIN_LEFT, player.ent.y*FATORY+MARGIN_TOP, RAYWHITE);
+        for(i = 0; i < n_bombas; i++){
+            if(Map.bomb[i].active)
+                DrawRectangle(Map.bomb[i].x * FATORX + MARGIN_LEFT, Map.bomb[i].y * FATORY+MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, BLACK);
+        }
+
+        for(i = 0; i < n_traps; i++){
+            DrawRectangle(Map.trap[i].x * FATORX + MARGIN_LEFT, Map.trap[i].y * FATORY+MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, RED);
+        }
+
+        //spritesheet = LoadTexture("../sprites/spritesheet.png");
+        //DrawTexture(spritesheet, player.ent.x*FATORX+MARGIN_LEFT, player.ent.y*FATORY+MARGIN_TOP, RAYWHITE);
         DrawRectangle(Map.portal.x * FATORX + MARGIN_LEFT, Map.portal.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GRAY); // Portal
         EndDrawing();                     // Finaliza o ambiente de desenho na tela
     }
 
     //------------------------------------------------------------------------------------------------
     //------------------------------------------------------------------------------------------------
-    if (*state == 'p')
-    {
-        if (current_map < MAX_MAPS)
-            current_map++;
-        novo_jogo(state);
-    }
-
-    *state = 'q';
+   if (*state == 'p')
+        {
+            puts("Changing current map...\n");
+            if (current_map < MAX_MAPS)
+                current_map++;
+            novo_jogo(state);
+        }
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
@@ -494,9 +582,14 @@ void voltar_jogo(char *state)
 void menu(char *state, int were_played)
 { // Menu do jogo
     char text[100] = "";
-
-    while (*state == '\0' || *state == 'e')
+    
+    while (*state == '\0' || *state == 'e' || *state == 'g')
     {
+        if(*state == 'g'){
+            WaitTime(2);
+            *state = '\0';
+        }
+        
         if (IsKeyPressed(KEY_N))
         {
             *state = 'a';
@@ -510,14 +603,17 @@ void menu(char *state, int were_played)
         {
             *state = 's';
             salvar_jogo(state);
+            puts("Game saved sucessfully");
         }
         if (IsKeyPressed(KEY_Q))
         {
+            puts("Exiting game...");
             *state = '0'; // atribui a '0' para poder sair do loop do menu.
             sair_jogo(state);
         }
         if (IsKeyPressed(KEY_V) && were_played)
         {
+            puts("Game resumed");
             *state = 'v';
         }
         BeginDrawing();
@@ -569,12 +665,13 @@ void menu(char *state, int were_played)
             current_map = 1;
             *state = 'n';
             novo_jogo(state);
-            were_played = 1;
         }
+
         BeginDrawing();
         ClearBackground(RAYWHITE);
         EndDrawing();
     }
+
 }
 //--------------------------------------------------------------------------------------
 //---Funcao Principal-------------------------------------------------------------------
@@ -586,9 +683,9 @@ int main(void)
     SetTargetFPS(24);
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
 
-    while (state == '\0' || state == 'e')
+    while (state == '\0' || state == 'e' || state == 'g' || state == 'p')
         menu(&state, 0);
-
+    
     CloseWindow(); // Fecha a janela e o contexto OpenGL
     return 0;
 }
