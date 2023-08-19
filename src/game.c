@@ -492,10 +492,10 @@ void novo_jogo(char *state)
             player.ent.health = 100;
         }
 
-        printf("\nplayer health: %d\n", player.ent.health);
+        /* printf("\nplayer health: %d\n", player.ent.health);
         printf("player lives: %d\n", player.ent.lives);
         printf("player bombs: %d\n", player_nbombs);
-
+ */
         if (IsKeyPressed(KEY_R))
             current_map = 0; // Reseta o mapa para testes
         if (IsKeyDown(KEY_SPACE))
