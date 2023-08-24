@@ -452,7 +452,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
 
         spawnEnemies(game.gaper, game.n_gaper);
         spawnEnemies(game.pooter, game.n_pooter);
-        
+
         puts("Setted enemies spawns");
 
         spawnItems(game.bomb, game.n_bombas);
@@ -561,7 +561,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
                     game.pooter[i].canChase = false;
                 }
                 if (game.pooter[i].canChase && !game.pooter[i].collided) {
-                    
+
                 } else {
                     if (enemy_steps > 0) {
                         movimentar(&game.pooter[i]);
@@ -571,7 +571,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
                 game.pooter[i].canChase = true;
                 game.pooter[i].collided = false;
             }
-            
+
         }
 
 
