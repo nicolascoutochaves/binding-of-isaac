@@ -5,7 +5,10 @@ Para fazer isso basta que o arquivo map.c tenha so funcoes, sem a main. dai se t
 #include "./map.c"
 
 int main(){
+    srand(current_timestamp());
     int map[MAP_HEIGHT][MAP_WIDTH] = {0};
     generateMap(map);
     printMap(map);
+    printf("\n\n");
+    
 }

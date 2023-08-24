@@ -31,453 +31,679 @@
 #define LADO_QUADRADOX LADOX
 #define LADO_QUADRADOY LADOY
 #define VELOCIDADE 1
-#define MAX_INIMIGOS 15
+#define MAX_INIMIGOS 14
 #define MAX_TRAPS 20
-#define MAX_BOMBS 20
+#define MAX_BOMBS 5
+
 //          Define o n maximo de mapas do modo normal:
-#define MAX_MAPS 9 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
+#define MAX_MAPS 10 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
+
 Texture2D spritesheet;
 
-typedef struct Entidades
-{               // Entidades means enemys or players
+typedef struct ENTIDADE {
+    // Entidades means enemys or players
     int x, y;   // posicao x e y
     int dx, dy; // direcoes
-    int vida;
-    bool active; // Retorna se esta vivo ou morto
-    bool collided;
-} Entidade; // Struct usada para criar novas "entidades" como jogadores e inimigos.
-//--------------------------------------------------------------------------------------
-//--------------------------------------------------------------------------------------
-typedef struct Player
-{
-    Entidade ent;
+    int health; // Saude
+    int lives;
     int pontuacao;
-} Player;
-
-typedef struct ITEM
-{
+    int bombs[MAX_BOMBS]; // Bombas
+    int n_bombs;
+    bool active; //Retorna se esta vivo ou morto
+    bool collided; //Retorna se entidade esta em colisao
+    bool canChase; //Retorna se entidade pode perseguir um jogador
+} ENTIDADE; // Struct usada para criar novas "entidades" como jogadores e inimigos.
+//--------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------
+typedef struct ITEM {
     int x;
     int y;
     bool active;
 } ITEM;
-
-typedef struct Map
-{
+typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para facilitar a manipulacao dos saves
     ITEM portal;
     ITEM trap[MAX_TRAPS];
     ITEM bomb[MAX_BOMBS];
-    Player player;
-    Entidade inimigo[MAX_INIMIGOS];
-} Map;
-typedef struct
-{
-    int pos_inicial_j ;
-    int lvl_atual ;
-    int placemeant;
-    int vidas;
-    int pos_enemy1;
-    int pos_enemy2;
-} ESTADO; // Declarei essa struct so para implementar o save do jogo, assim que possivel organizo certinho
-//----------------------------------------------------------
-//------------funcao saveGame-------------------------------
-int SalvaEstado(char nome[],ESTADO a)
-{
-FILE *arq;
-    arq = fopen(nome, "wb");
-    if(arq == NULL)
-    {
-        puts("erro de escrita\n");
-       return 0;
-    }
-    while(!feof(arq))
-    {
-        fwrite(&a,sizeof(ESTADO),1,arq);
-         return 1;
-    }
-    fclose(arq);
-}
-//----------------------------------------------------------
-//------------funcao saveGame-------------------------------
-int LeEstado(char nome[],ESTADO *a)
-{
-    FILE *arq;
-    arq = fopen(nome, "rb");
-    if(arq==NULL)
-    {
-        puts("erro de leitura ao ler o arquivo\n");
-        return 0;
-    }
-    else
-    {
-        fread(a,sizeof(ESTADO),1,arq);
-         return 1;
-    }
-    fclose(arq);
-}
+    ENTIDADE player;
+    ENTIDADE gaper[MAX_INIMIGOS/2]; //Inimigo que persegue o player quando esta no seu campo de visao
+    ENTIDADE pooter[MAX_INIMIGOS/2]; //Inimigo que atira quando ve o player
+    int map[MAP_HEIGHT][MAP_WIDTH];
+    int current_map;
+    int modo_jogo; // 1 e padrao, 2 e a geracao aleatoria
+    int n_gaper;
+    int n_pooter;
+    int n_bombas;
+    int n_traps;
+    bool isLoaded;
+} GAME;
+
+GAME game = {0}; //Declaracao da struct game como global porque absolutamente tudo precia dessa struct e facilita muito os saves e loads
+
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
-void menu(char *state, int were_played, char nome[],ESTADO a);
+void menu(char *state, int were_played);
+int salvar_jogo(char *state, char filename[]);
 
-int deveMover(int m[MAP_HEIGHT][MAP_WIDTH], int x, int y, int dx, int dy)
+void loadMap() //Carrega os mapas .txt
 {
-    int deve_mover = 1;
-
-    // Desconta de x e y as margens para nao bugar as colisoes
-    /*  y -= MARGIN_TOP;
-     x -= MARGIN_LEFT; */
-    // verifica as posicoes nos quatro vertices do quadrado:
-
-    if (
-        (m[y][x + 1] == 0 && dx == 1) ||
-        (m[y][x - 1] == 0 && dx == -1))
-        deve_mover = 0;
-    if (
-        (m[y - 1][x] == 0 && dy == 1) ||
-        (m[y + 1][x] == 0 && dy == -1))
-        deve_mover = 0;
-
-    return deve_mover;
-}
-
-void move(int dx, int dy, int *x, int *y)
-{
-    *x += VELOCIDADE * dx;
-    *y -= VELOCIDADE * dy;
-}
-
-void redefineDeslocamento(int *dx, int *dy)
-{
-    *dx = 0;
-    *dy = 0;
-
-    while (*dx == 0 && *dy == 0)
-    {
-        *dx = 1 - (rand() % 3);
-        *dy = 1 - (rand() % 3);
-    }
-}
-
-int movimentar(int *x, int *y, int *dx, int *dy, int map[MAP_HEIGHT][MAP_WIDTH])
-{
-
-    int moveu = 0;
-
-    if (deveMover(map, *x, *y, *dx, *dy))
-    {
-        move(*dx, *dy, x, y);
-        moveu = 1;
-    }
-
-    return moveu;
-}
-
-void persegue(Player player, Entidade *inimigo, int map[MAP_HEIGHT][MAP_WIDTH])
-{
-
-    if (deveMover(map, inimigo->x, inimigo->y, inimigo->dx, inimigo->dy))
-    {
-        if (((player.ent.x) > (inimigo->x)))
-        {
-            inimigo->x += VELOCIDADE;
-        }
-
-        if (((player.ent.x) < (inimigo->x)))
-        {
-            inimigo->x -= VELOCIDADE;
-        }
-
-        if (((player.ent.y) < (inimigo->y)))
-        {
-            inimigo->y -= VELOCIDADE;
-        }
-
-        if (((player.ent.y) > (inimigo->y)))
-        {
-            inimigo->y += VELOCIDADE;
-        }
-    } /* else{
-        redefineDeslocamento(&inimigo->dx, &inimigo->dy);
-        inimigo->x += VELOCIDADE * inimigo->dx;
-        inimigo->y -= VELOCIDADE * inimigo->dy;
-    } */
-}
-int modo_jogo = 1;   // 0 e padrao, 1 e a geracao aleatoria
-int current_map = 1; // variavel global por enquanto, pra nao precisar passar o mapa atual por referencia para a funcao.
-void novo_jogo(char *state, char nome[], ESTADO a)
-{
-
-    *state = '\0';
-    int map[MAP_HEIGHT][MAP_WIDTH] = {0};
     FILE *maptxt;
+    char c; // caracter buffer do mapa
     char filename[30];
-    char c; // caracter do mapa
-    int n_inimigos = 0;
     int i, j;
-    int x = 0, y = 0;
-    Player player = {0};
-    Entidade inimigo[MAX_INIMIGOS];
-    Map Map;
-    Rectangle portal;
+    sprintf(filename, "../mapas/mapa%02d.txt", game.current_map); // define o caminho do mapa e salva na variavel "filename", para que possamos alterar o nome do mapa dinamicamente (pois na funcao fopen nao pode passar paramentros para formatacao)
 
-    if (!modo_jogo)
-    {                                                          // Se o modo de jogo for 1, gera o mapa e os spawns aleatoriamente, se nao, carrega os arquivos
-        sprintf(filename, "../mapas/mapa%d.txt", current_map); // define o caminho do mapa e salva na variavel "filename", para que possamos alterar o nome do mapa dinamicamente (pois na funcao fopen nao pode passar paramentros para formatacao)
+    if (!(maptxt = fopen(filename, "r"))) {
+        printf("file open error with file ../mapas/map%02d.txt\n", game.current_map);
+        WaitTime(1);
+        return;
+    } else {
 
-        if (!(maptxt = fopen(filename, "r")))
-        {
-            DrawText("Erro ao carregar o mapa!", LARGURA / 2 - MeasureText("Erro ao carregar o mapa!", FONT_SIZE), ALTURA, FONT_SIZE, RED);
-            WaitTime(1);
-            return;
-        }
-        else
-        {
-            rewind(maptxt); // coloca o cursor no inicio do mapa
-            for (i = 0; i < MAP_HEIGHT; i++)
-            {
-                for (j = 0; j < MAP_WIDTH; j++)
-                {
-                    fflush(maptxt);
-                    if ((fread(&c, sizeof(char), 1, maptxt)) != 1)
-                    {
-                        DrawText("Erro ao ler o mapa!", LARGURA / 2 - MeasureText("Erro ao ler o mapa!", FONT_SIZE), ALTURA, FONT_SIZE, RED);
+        for (i = 0; i < MAP_HEIGHT; i++) {
+            for (j = 0; j < MAP_WIDTH; j++) {
+
+                if ((fread(&c, sizeof(char), 1, maptxt)) != 1) {
+                    printf("map%02d.txt read failure!\n", game.current_map);
+                } else {
+                    c = toupper(c);
+                    switch (c) {
+                    case '#':
+                        game.map[i][j] = 0; // Parede
+                        break;
+
+                    case '\n':
+                        fseek(maptxt, 1, SEEK_CUR); // Pula o caracter de new line
+                        break;
+                    default:
+                        game.map[i][j] = 1; // Espaco vazio
                     }
-                    else
-                    {
-                        c = toupper(c);
-                        switch (c)
-                        {
-                        case '#':
-                            map[i][j] = 0; // Parede
-                            break;
+                    if (!game.isLoaded) {
+                        switch (c) {
                         case 'J':
-                            map[i][j] = 2; // jogador
-                            player.ent.x = j;
-                            player.ent.y = i;
+                            game.map[i][j] = 2; // jogador
+                            game.player.x = j;
+                            game.player.y = i;
                             break;
                         case 'I':
-                            map[i][j] = 3; // Inimigo
-                            inimigo[n_inimigos].x = j;
-                            inimigo[n_inimigos].y = i;
-                            n_inimigos++; // incrementa n_inimigos para verificar o proximo inimigo
+                            game.map[i][j] = 3; // Inimigo
+                            game.gaper[game.n_gaper].x = j;
+                            game.gaper[game.n_gaper].y = i;
+                            game.n_gaper++; // incrementa game.n_gaper para verificar o proximo game.gaper
                             break;
                         case 'B':
-                            map[i][j] = 4; // Bomba
+                            game.map[i][j] = 4; // Bomba
+                            game.bomb[game.n_bombas].x = j;
+                            game.bomb[game.n_bombas].y = i;
+                            game.n_bombas++;
                             break;
                         case 'X':
-                            map[i][j] = 5; // Armadilha
+                            game.map[i][j] = 5; // Armadilha
+                            game.trap[game.n_traps].x = j;
+                            game.trap[game.n_traps].y = i;
+                            game.n_traps++;
                             break;
                         case 'P':
-                            map[i][j] = 6; // Portal
-                            Map.portal.x = j;
-                            Map.portal.y = i;
-                            Map.portal.active = false;
+                            game.map[i][j] = 6; // Portal
+                            game.portal.x = j;
+                            game.portal.y = i;
                             break;
-                        case '\n':
-                            fseek(maptxt, 1, SEEK_CUR); // Pula o caracter de new line
-                            break;
-                        default:
-                            map[i][j] = 1; // Espaco vazio
                         }
                     }
                 }
             }
-
-            fclose(maptxt);
         }
-    }
-    else
-    {
-        int difficulty = 1;
-        if (n_inimigos > MAX_INIMIGOS)
-            n_inimigos = MAX_INIMIGOS;
-        n_inimigos = 1 + (difficulty * current_map);
-        generateMap(map);
 
-        for (i = 0; i < n_inimigos; i++)
-        {
-            // Spawn dos Inimigos
-            while (map[y][x] == 0)
-            {
-                x = rand() % MAP_WIDTH - 1;
-                y = rand() % (MAP_HEIGHT - 1) / 2;
+        fclose(maptxt);
+    }
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+void spawnEnemies(ENTIDADE inimigo[], int n_inimigos) //Spawna os inimigos (na geracao aleatoria)
+{
+    int i, x = 0, y = 0;
+    for (i = 0; i < n_inimigos; i++) {
+        while (!game.map[y][x]) {
+            x = 3 + (rand() % MAP_WIDTH - 3);
+            y = 3 + (rand() % (MAP_HEIGHT - 3));
+        }
+        inimigo[i].x = x;
+        inimigo[i].y = y;
+        x = 0;
+        y = 0;
+    }
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+void spawnItems(ITEM item[], int n_items) //Spawna os itens (na geracao aleatoria)
+{
+    int i, x = 0, y = 0;
+    for (i = 0; i < n_items; i++) {
+        while (!game.map[y][x]) {
+            x = 3 + (rand() % MAP_WIDTH - 3);
+            y = 3 + (rand() % (MAP_HEIGHT - 3));
+        }
+        item[i].x = x;
+        item[i].y = y;
+        x = 0;
+        y = 0;
+    }
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+void redefineDeslocamento(ENTIDADE *inimigo, int *steps) //Redefine o deslocamento quando o inimigo termina o movimento atual
+{
+    int s = 0;
+    while (s == 0) {
+        s = 1 - (rand() % 3);
+    }
+
+    inimigo->dx = 0;
+    inimigo->dy = 0;
+    if (s == 1) {
+        while (inimigo->dx == 0)
+            inimigo->dx = 1 - (rand() % 3);
+    } else {
+        while (inimigo->dy == 0)
+            inimigo->dy = 1 - (rand() % 3);
+    }
+    if (*steps == 0)
+        *steps = (int)GetFrameTime() * 500 + (rand() % (int)(GetFrameTime() * 700)); // Define um tempo para o game.gaper se movimentar
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+void movimentar(ENTIDADE *entidade) //Movimenta uma entidade dentro do mapa, evitando mover atraves das paredes
+{
+    entidade->collided = false;
+    if ((game.map[entidade->y][entidade->x + 1] == 0 && entidade->dx == 1) ||
+        (game.map[entidade->y][entidade->x - 1] == 0 && entidade->dx == -1)) {
+        entidade->collided = true;
+    } else
+        entidade->x += VELOCIDADE * entidade->dx;
+
+    if ((game.map[entidade->y - 1][entidade->x] == 0 && entidade->dy == 1) ||
+        (game.map[entidade->y + 1][entidade->x] == 0 && entidade->dy == -1)) {
+        entidade->collided = true;
+    } else
+        entidade->y -= VELOCIDADE * entidade->dy;
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+int rayCast(ENTIDADE a, ENTIDADE b) //Funcao que esstabelece um vetor posicao relativa entre duas entidades. funciona como uma linha de visao para os inimigos
+{
+    int abx = b.x - a.x;                     // vetor posicao dos dois objetos no eixo x
+    int aby = b.y - a.y;                     // vetor posicao dos dois objetos no eixo y
+    int r = sqrt(pow(abx, 2) + pow(aby, 2)); // distancia entre os dois pontos
+    int sight = 1;
+    int seen_objects = 0;
+
+    while (sight < r) {
+        //
+        if (abx != 0 && abs(b.x - a.x) > 0)
+            b.x -= (abs(abx) / abx);
+        if (aby != 0 && abs(b.y - a.y) > 0)
+            b.y -= (abs(aby) / aby);
+
+        int rx = a.x + (b.x - a.x); // posicao x dos quadrados da posicao relativa
+        int ry = a.y + (b.y - a.y); // posicao y dos quadrados da posicao relativa
+
+        // DrawRectangle(rx*FATORX + MARGIN_LEFT, ry*FATORY + MARGIN_TOP, 20, 20, BLUE);//Desenha os quadrados que representam a posicao relatica entre ent e object para fim de testes
+
+        if (!game.map[ry][rx]) {
+            seen_objects++;
+        }
+        sight++;
+    }
+    // Testa e printa na tela os objetos entre a posicao das duas entidades
+    // char text[100];
+    // sprintf(text, "N objetos na direcao atual: %d", seen_objects);
+    // DrawText(text, LARGURA/2-200, ALTURA/2, FONT_SIZE, RED);
+
+    return seen_objects;
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exceto o portal)
+    int i;
+
+    // Colisoes com os inimigos
+    //Gaper:
+        for (i = 0; i < game.n_gaper; i++) {
+            if ((game.player.x + game.player.dx == game.gaper[i].x && game.player.y == game.gaper[i].y) ||
+                (game.player.y - game.player.dy == game.gaper[i].y && game.player.x == game.gaper[i].x)) {
+                game.player.health--;
+                game.player.collided = true;
             }
-            inimigo[i].x = x;
-            inimigo[i].y = y;
-
-            x = 0;
-            y = 0;
+            if ((game.gaper[i].x + game.gaper[i].dx == game.player.x && game.gaper[i].y == game.player.y) ||
+                (game.gaper[i].y - game.gaper[i].dy == game.player.y && game.gaper[i].x == game.player.x)) {
+                game.gaper[i].collided = true;
+            }
         }
-        // Spawn do jogador
-        while (map[y][x] == 0)
-        {
-            x = rand() % MAP_WIDTH - 1;
-            y = (MAP_HEIGHT - 1) - rand() % (MAP_HEIGHT / 2); // Player spawna na metade de baixo do mapa
+    //Pooter:
+        for (i = 0; i < game.n_pooter; i++) {
+            if ((game.player.x + game.player.dx == game.pooter[i].x && game.player.y == game.pooter[i].y) ||
+                (game.player.y - game.player.dy == game.pooter[i].y && game.player.x == game.pooter[i].x)) {
+                game.player.health--;
+                game.player.collided = true;
+            }
+            if ((game.pooter[i].x + game.pooter[i].dx == game.player.x && game.pooter[i].y == game.player.y) ||
+                (game.pooter[i].y - game.pooter[i].dy == game.player.y && game.pooter[i].x == game.player.x)) {
+                game.pooter[i].collided = true;
+            }
         }
 
-        player.ent.x = x;
-        player.ent.y = y;
+        game.portal.active = true;
+
+        // Colisoes com itens to mapa:
+        // Bombas
+        for (i = 0; i < game.n_bombas; i++) {
+            if (game.player.x == game.bomb[i].x && game.player.y == game.bomb[i].y && game.bomb[i].active) {
+                game.player.bombs[i]++;
+                game.player.n_bombs++;
+                game.bomb[i].active = false;
+            }
+        }
+        // Traps
+        for (i = 0; i < game.n_traps; i++) {
+            if (game.player.x == game.trap[i].x && game.player.y == game.trap[i].y) {
+                game.player.health -= 50;
+            }
+        }
+
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseguicao entre inimigo e jogador
+{
+    if (((game.player.x) > (gaper->x))) {
+        gaper->dx = 1;
     }
-    for (i = 0; i < n_inimigos; i++)
-        redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+    else if (((game.player.x) < (gaper->x))) {
+        gaper->dx = -1;
+    } else if (((game.player.y) < (gaper->y))) {
+        gaper->dy = 1;
+    }
+    else if (((game.player.y) > (gaper->y))) {
+        gaper->dy = -1;
+    }
+    movimentar(gaper);
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+void DrawGame(){ //Funcao que desenha o jogo
+    int i, j;
+    BeginDrawing();            // Inicia o ambiente de desenho na tela
+    ClearBackground(RAYWHITE); // Limpa a tela e define cor de fundo
+    DrawRectangle(game.player.x * FATORX + MARGIN_LEFT, game.player.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
+
+    // Desenha o mapa na tela:
+    for (i = 0; i < MAP_HEIGHT; i++) {
+        for (j = 0; j < MAP_WIDTH; j++) {
+            if (game.map[i][j] == 0)
+                DrawRectangle(j * FATORX + MARGIN_LEFT, i * FATORY + MARGIN_TOP, LADOX, LADOY, PURPLE);
+        }
+    }
+    //Desenha os inimigos
+    for (i = 0; i < game.n_gaper; i++) {
+        if(game.gaper[i].active)
+            DrawRectangle(game.gaper[i].x * FATORX + MARGIN_LEFT, game.gaper[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
+    }
+    for (i = 0; i < game.n_pooter; i++) {
+        if(game.pooter[i].active)
+            DrawRectangle(game.pooter[i].x * FATORX + MARGIN_LEFT, game.pooter[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, BROWN);
+    }
+
+    //Desenha as bombas
+    for (i = 0; i < game.n_bombas; i++) {
+        if (game.bomb[i].active)
+            DrawRectangle(game.bomb[i].x * FATORX + MARGIN_LEFT, game.bomb[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, BLACK);
+    }
+
+    //Deenha as traps
+    for (i = 0; i < game.n_traps; i++) {
+        DrawRectangle(game.trap[i].x * FATORX + MARGIN_LEFT, game.trap[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, RED);
+    }
+
+    // spritesheet = LoadTexture("../sprites/spritesheet.png");
+    // DrawTexture(spritesheet, game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, RAYWHITE);
+
+    //Desenha o portal
+    DrawRectangle(game.portal.x * FATORX + MARGIN_LEFT, game.portal.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GRAY); // Portal
+
+
+    EndDrawing();
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando e feito o load do save e quando avanca de fase)
+{
+    *state = '\0';
+    int enemy_steps = 0;
+
+    int i, j;
+    int x = 0, y = 0;
+    puts("\nStarting new game...\n");
+
+    if (!game.isLoaded) { //Reseta o numero de itens e inimigos caso o jogo NAO tenha sido carregado a partir de um save
+        game.n_bombas = 0;
+        game.n_gaper = 0;
+        game.n_pooter = 0;
+        game.n_traps = 0;
+    }
+
+    if (!game.modo_jogo) {
+        // Se o modo de jogo for 1, gera o mapa e os spawns aleatoriamente, se nao, carrega os arquivos
+        loadMap();
+    } else {
+
+        int difficulty = 1;
+        game.n_gaper = (1 + (difficulty * game.current_map))/2;
+        game.n_pooter = (1 + (difficulty * game.current_map))/4;
+
+        if (game.n_gaper > MAX_INIMIGOS/2)
+            game.n_gaper = MAX_INIMIGOS/2;
+        if (game.n_pooter > MAX_INIMIGOS/2)
+            game.n_pooter = MAX_INIMIGOS/2;
+
+        game.n_bombas = 1 + (game.n_gaper * game.current_map) / (1 + 2 * pow(difficulty, 2));
+        if (game.n_bombas > MAX_BOMBS)
+            game.n_bombas = MAX_BOMBS;
+        game.n_traps = 1 + (difficulty * game.current_map);
+        if (game.n_traps > MAX_TRAPS)
+            game.n_traps = MAX_TRAPS;
+
+        for (i = 0; i < MAP_HEIGHT; i++) {
+            for (j = 0; j < MAP_WIDTH; j++) {
+                game.map[i][j] = 0;
+            }
+        }
+        if (generateMap(game.map)) {
+            puts("game generated sucessfully!");
+        } else
+            puts("game generation failure");
+
+        // Spawn do jogador
+        int count_avaible_cells = 0;
+        while (game.map[y][x] == 0) {
+            x = 3 + (rand() % MAP_WIDTH - 3);
+            for (i = (int)(MAP_HEIGHT / 2); i < MAP_HEIGHT; i++) {
+                for (j = 0; j < MAP_WIDTH; j++) {
+                    if (game.map[i][j])
+                        count_avaible_cells++;
+                }
+            }
+            if (!count_avaible_cells)                    // Se nao houver espaco na metade debaixo do mapa:
+                y = 3 + rand() % ((MAP_HEIGHT - 3) / 2); // ENTIDADE spawna em qualquer posicao livre do mapa
+            else
+                y = ((MAP_HEIGHT - 3) - (3 + rand() % ((MAP_HEIGHT - 3) / 2))); // ENTIDADE spawna na metade de baixo do mapa
+        }
+        game.player.x = x;
+        game.player.y = y;
+        puts("Setted player spawn");
+
+        // Portal
+
+        game.portal.x = MAP_WIDTH - 2;
+        game.portal.y = 2 + (rand() % (MAP_HEIGHT - 5));
+        while (!game.map[game.portal.y][game.portal.x - 1]) {
+            game.portal.y = 2 + (rand() % (MAP_HEIGHT - 5));
+        }
+        game.map[game.portal.y][game.portal.x] = 6;
+        puts("Portal spawned");
+
+        spawnEnemies(game.gaper, game.n_gaper);
+        spawnEnemies(game.pooter, game.n_pooter);
+        
+        puts("Setted enemies spawns");
+
+        spawnItems(game.bomb, game.n_bombas);
+        printf("Bombs spawns sucessfully setted: %d bombas in current map\n", game.n_bombas);
+
+        spawnItems(game.trap, game.n_traps);
+        printf("Traps spawns sucessfully setted: %d traps in current map\n", game.n_traps);
+    }
+    if (!game.isLoaded) {
+        for (i = 0; i < game.n_gaper; i++) {
+            redefineDeslocamento(&game.gaper[i], &enemy_steps);
+        }
+        puts("enemies directions setted");
+
+        for (i = 0; i < game.n_bombas; i++) {
+            game.bomb[i].active = true;
+        }
+        for (i = 0; i < game.n_gaper; i++) {
+            game.gaper[i].active = true;
+        }
+        for (i = 0; i < game.n_bombas; i++) {
+            game.pooter[i].active = true;
+        }
+
+        game.portal.active = false;
+        game.player.health = 100;
+        game.player.lives = 3;
+        game.player.n_bombs = 0;
+    }
+    game.isLoaded = false;
 
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------
-    while (!WindowShouldClose() && *state != 'q' && *state != 'n' && *state != 'p')
-    { //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
-
+    while (!WindowShouldClose() && *state != 'q' && *state != 'n' && *state != 'p') {
+        //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
         //                  JOGADOR:
         // Verifica se o usuario apertou ESC
-        if (IsKeyPressed(KEY_ESCAPE))
-        {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            puts("Game paused");
             *state = 'e';
-            menu(state, 1,nome, a);
+            menu(state, 1);
+            if (*state == 'g') {
+                return; // Remove um bug de o jogador iniciar um novo jogo pelo pause e morrer na primeira fase e nao exibir o game over
+            }
             //  Time(0.2);
         }
+
         // Define as direcoes dx e dy do jogador:
         if (IsKeyDown(KEY_D))
-            player.ent.dx = 1;
+            game.player.dx = 1;
         if (IsKeyDown(KEY_A))
-            player.ent.dx = -1;
+            game.player.dx = -1;
         if (IsKeyDown(KEY_W))
-            player.ent.dy = 1;
+            game.player.dy = 1;
         if (IsKeyDown(KEY_S))
-            player.ent.dy = -1;
+            game.player.dy = -1;
 
-        // Colisoes com os inimigos
-        for (i = 0; i < n_inimigos; i++)
-        {
-            if ((player.ent.x + player.ent.dx == inimigo[i].x && player.ent.y == inimigo[i].y) ||
-                (player.ent.y - player.ent.dy == inimigo[i].y && player.ent.x == inimigo[i].x))
-            {
-                player.ent.collided = true;
-            }
-            if ((inimigo[i].x + inimigo[i].dx == player.ent.x && inimigo[i].y == player.ent.y) ||
-                (inimigo[i].y - inimigo[i].dy == player.ent.y && inimigo[i].x == player.ent.x))
-            {
-                inimigo[i].collided = true;
+        checkCollision();
 
-            }
-        }
-
-        Map.portal.active = true;
-        // Colisoes com itens to mapa:
-        if (player.ent.x == Map.portal.x && player.ent.y == Map.portal.y && Map.portal.active)
+        // Portal
+        if (game.player.x == game.portal.x && game.player.y == game.portal.y && game.portal.active)
             *state = 'p';
 
-        if (IsKeyPressed(KEY_R))
-            current_map = 0; // Reseta o mapa para testes
-        if (IsKeyPressed(KEY_SPACE))
-        {
-            *state = 'p';
-        }
+        // Movimentacao do jogador
+        if (!game.player.collided)
+            movimentar(&game.player);
+        game.player.collided = false;
+        game.player.dx = 0;
+        game.player.dy = 0;
 
-        if (!player.ent.collided)
-            movimentar(&player.ent.x, &player.ent.y, &player.ent.dx, &player.ent.dy, map);
-        player.ent.collided = false;
-        player.ent.dx = 0;
-        player.ent.dy = 0;
+        // Movimentacao dos inimigos
 
-        for (i = 0; i < n_inimigos; i++)
-        {
-
-            if (!inimigo[i].collided)
-            {
-                /* if ((sqrt(pow((player.ent.x - inimigo[i].x), 2) + pow((player.ent.y - inimigo[i].y), 2))) < 10)
-                {
-                    // DrawText("ESTA PERTO!", LARGURA/2, ALTURA/2, FONT_SIZE, PURPLE); //verifica se jogador esta perto de inimigo
-                    persegue(player, &inimigo[i], map);
+        for (i = 0; i < game.n_gaper; i++) {
+            if(game.gaper[i].active){
+                if (enemy_steps == 0)
+                    redefineDeslocamento(&game.gaper[i], &enemy_steps);
+                if (game.gaper[i].collided) {
+                    redefineDeslocamento(&game.gaper[i], &enemy_steps);
                 }
-                else  */if (!movimentar(&inimigo[i].x, &inimigo[i].y, &inimigo[i].dx, &inimigo[i].dy, map))
-                    redefineDeslocamento(&inimigo[i].dx, &inimigo[i].dy);
+                if (rayCast(game.gaper[i], game.player) != 0) {
+                    // Chama a funcao que verifica se tem paredes entre o game.gaper e o jogador
+                    game.gaper[i].canChase = false;
+                }
+                if (game.gaper[i].canChase && !game.gaper[i].collided) {
+                    persegue(game.player, &game.gaper[i]);
+                } else {
+                    if (enemy_steps > 0) {
+                        movimentar(&game.gaper[i]);
+                        enemy_steps--;
+                    }
+                }
+                game.gaper[i].canChase = true;
+                game.gaper[i].collided = false;
             }
-            inimigo[i].collided = false;
+        }
+
+        for (i = 0; i < game.n_pooter; i++) {
+            if(game.pooter[i].active){
+                if (enemy_steps == 0)
+                    redefineDeslocamento(&game.pooter[i], &enemy_steps);
+                if (game.pooter[i].collided) {
+                    redefineDeslocamento(&game.pooter[i], &enemy_steps);
+                }
+                if (rayCast(game.pooter[i], game.player) != 0) {
+                    // Chama a funcao que verifica se tem paredes entre o game.gaper e o jogador
+                    game.pooter[i].canChase = false;
+                }
+                if (game.pooter[i].canChase && !game.pooter[i].collided) {
+                    
+                } else {
+                    if (enemy_steps > 0) {
+                        movimentar(&game.pooter[i]);
+                        enemy_steps--;
+                    }
+                }
+                game.pooter[i].canChase = true;
+                game.pooter[i].collided = false;
+            }
+            
+        }
+
+
+        if (game.player.health < 1) {
+            game.player.lives--;
+            game.player.health = 100;
+        }
+
+        printf("\nplayer health: %d\n", game.player.health);
+        printf("player lives: %d\n", game.player.lives);
+        printf("player bombs: %d\n", game.player.n_bombs);
+
+        if (IsKeyDown(KEY_SPACE)) {
+            *state = 'p';
+        }
+
+        // Game Over:
+        if (IsKeyPressed(KEY_MINUS))
+            game.player.lives--;
+        if (!game.player.lives) {
+            char text[30];
+            *state = 'g';
+            strcpy(text, "Game Over!");
+            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE + 10) / 2, ALTURA / 2 - FONT_SIZE + 10, FONT_SIZE, RED);
+            return;
         }
 
         //---------------------------------------------------------------------------
         //---------------------------------------------------------------------------
         //                          DESENHAR JOGO:
-        BeginDrawing();            // Inicia o ambiente de desenho na tela
-        ClearBackground(RAYWHITE); // Limpa a tela e define cor de fundo
-        DrawRectangle(player.ent.x * FATORX + MARGIN_LEFT, player.ent.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
-        for (i = 0; i < n_inimigos; i++)
-        {
-            DrawRectangle(inimigo[i].x * FATORX + MARGIN_LEFT, inimigo[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
-        }
-        // Desenha o mapa na tela:
-        for (i = 0; i < MAP_HEIGHT; i++)
-        {
-            for (j = 0; j < MAP_WIDTH; j++)
-            {
-                if (map[i][j] == 0)
-                    DrawRectangle(j * FATORX + MARGIN_LEFT, i * FATORY + MARGIN_TOP, LADOX, LADOY, PURPLE);
-            }
-        }
-        DrawRectangleRec(portal, YELLOW); // Portal
-        EndDrawing();                     // Finaliza o ambiente de desenho na tela
+        DrawGame();
     }
 
     //------------------------------------------------------------------------------------------------
     //------------------------------------------------------------------------------------------------
-    if (*state == 'p')
-    {
-        if (current_map < MAX_MAPS)
-            current_map++;
-        novo_jogo(state,nome, a );
+    if (*state == 'p') {
+        puts("Changing current map...\n");
+        if (game.current_map < MAX_MAPS)
+            game.current_map++;
+        novo_jogo(state);
+    }
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+int carregar_jogo(char *state, char filename[]) //Faz o load do save
+{
+    char text[50];
+    int carregou = 0;
+    FILE *savestate;
+    if (!(savestate = fopen(filename, "rb"))) {
+        puts("Erro ao abrir o arquivo de save!");
+    } else {
+        if ((fread(&game, sizeof(game), 1, savestate)) != 1) {
+            puts("Erro ao carregar o jogo");
+        } else {
+            puts("Game loaded sucessfully!");
+            carregou = 1;
+        }
+        fclose(savestate);
     }
 
-    *state = 'q';
-}
-//------------------------------------------------------------------------------------------------
-//------------------------------------------------------------------------------------------------
-void carregar_jogo(char *state,char nome, ESTADO *a)
-{
-    while (*state == 's'){ LeEstado(nome,&a);} //LeSave
-    *state = '\0';
-}
-//------------------------------------------------------------------------------------------------
-//------------------------------------------------------------------------------------------------
-void salvar_jogo(char *state,char nome[], ESTADO a)
-{
-   char text[50];
-    FILE *arq;
-    while (*state == 's')
-    {
-
+    while (*state == 'c') {
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        SalvaEstado(nome, a);
-        if(SalvaEstado){ strcpy(text, "Jogo salvo com sucesso!");} // se der pra salvar o arquivo aparecerá a msg
-        else{ strcpy(text, "Erro ao salvar o jogo!");}// caso contrario printar essa msg
+        strcpy(text, "Jogo Carregado com sucesso!");
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 2 - FONT_SIZE, FONT_SIZE, BLACK);
 
         strcpy(text, "Aperte ESC para continuar");
-        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 2 - FONT_SIZE + 50, FONT_SIZE, BLACK);
+        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 2 - FONT_SIZE - 10 + 70, FONT_SIZE - 10, BLACK);
 
         if (IsKeyPressed(KEY_ESCAPE))
             *state = '\0';
         EndDrawing();
     }
-    menu(state,1,nome,a);
+    return carregou;
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void sair_jogo(char *state,char nome[], ESTADO a )
+int salvar_jogo(char *state, char filename[]) //Salva a struct game em um arquivo binario
 {
     char text[50];
-    while (*state != 'q')
-    {
+    FILE *savestate;
+    int salvou = 0;
+    if ((!game.modo_jogo)) {
+        if (!(savestate = fopen(filename, "wb"))) {
+            puts("Erro ao abrir o arquivo de save!");
+        } else {
+            if ((fwrite(&game, sizeof(game), 1, savestate)) != 1) {
+                puts("Erro ao salvar o jogo");
+            } else {
+                salvou = 1;
+            }
+            fclose(savestate);
+        }
+    }
+    while (*state == 's') {
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+        if (game.modo_jogo) {
+            strcpy(text, "Impossivel salvar no survival mode!");
+            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 2 - FONT_SIZE, FONT_SIZE, BLACK);
+        } else {
+            strcpy(text, "Jogo salvo com sucesso!");
+            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 2 - FONT_SIZE, FONT_SIZE, BLACK);
+        }
+
+        strcpy(text, "Aperte ESC para continuar");
+        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 2 - FONT_SIZE - 10 + 70, FONT_SIZE - 10, BLACK);
+        if (IsKeyPressed(KEY_ESCAPE))
+            *state = '\0';
+        EndDrawing();
+    }
+    // menu(state, 1);
+    return salvou;
+}
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+void sair_jogo(char *state) //Encerra o jogo apos perguntar se o usuario gostaria de salvar o jogo
+{
+    char text[50];
+    char save_path[50] = "../saves/save.bin";
+    while (*state != 'q') {
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
         strcpy(text, "Deseja salvar o jogo? (S/N)");
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 2 - FONT_SIZE, FONT_SIZE, BLACK);
 
-        if (IsKeyPressed(KEY_S))
-        {
-            SalvaEstado(nome, a);// caso for pressionado sim, salvar o jogo;
+        if (IsKeyPressed(KEY_S)) {
+            salvar_jogo(state, save_path);
             *state = 'q';
-        }
-        else if (IsKeyPressed(KEY_N))
-        {
+        } else if (IsKeyPressed(KEY_N)) {
             *state = 'q';
         }
         EndDrawing();
@@ -485,38 +711,52 @@ void sair_jogo(char *state,char nome[], ESTADO a )
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void voltar_jogo(char *state)
+void voltar_jogo(char *state) //Simplesmente retorna ao jogo
 {
     *state = '\0';
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void menu(char *state, int were_played, char nome[], ESTADO a)
-{ // Menu do jogo
+void menu(char *state, int were_played) //Menu principal do jogo
+{
+    // Menu do jogo
     char text[100] = "";
+    char save_path[50] = "../saves/save.bin";
 
-    while (*state == '\0' || *state == 'e')
-    {
-        if (IsKeyPressed(KEY_N)){
+    while (*state == '\0' || *state == 'e' || *state == 'g') {
+        if (*state == 'g') {
+            WaitTime(2);
+            *state = '\0';
+        }
+
+        if (IsKeyPressed(KEY_N)) {
             *state = 'a';
         }
-        if (IsKeyPressed(KEY_C))
-        {
+        if (IsKeyPressed(KEY_C)) {
             *state = 'c';
-            carregar_jogo(state,nome ,&a);
+            if (carregar_jogo(state, save_path)) {
+                game.isLoaded = true;
+                novo_jogo(state);
+            }
+
+            else {
+
+                strcpy(text, "Nao foi possivel carregar o jogo!:");
+                DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, 100, FONT_SIZE, RED);
+            }
         }
-        if (IsKeyPressed(KEY_S) && were_played)
-        {
+        if (IsKeyPressed(KEY_S) && were_played) {
             *state = 's';
-            salvar_jogo(state,nome,a);
+            if (salvar_jogo(state, save_path))
+                puts("Game saved sucessfully");
         }
-        if (IsKeyPressed(KEY_Q))
-        {
+        if (IsKeyPressed(KEY_Q)) {
+            puts("Exiting game...");
             *state = '0'; // atribui a '0' para poder sair do loop do menu.
-            sair_jogo(state,nome,a);
+            sair_jogo(state);
         }
-        if (IsKeyPressed(KEY_V) && were_played)
-        {
+        if (IsKeyPressed(KEY_V) && were_played) {
+            puts("Game resumed");
             *state = 'v';
         }
         BeginDrawing();
@@ -534,8 +774,7 @@ void menu(char *state, int were_played, char nome[], ESTADO a)
         strcpy(text, "Q: sair do jogo");
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, 400, FONT_SIZE, BLACK);
 
-        if (were_played)
-        {
+        if (were_played) {
             strcpy(text, "S: salvar jogo");
             DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, 350, FONT_SIZE, BLACK);
 
@@ -544,58 +783,48 @@ void menu(char *state, int were_played, char nome[], ESTADO a)
         }
         EndDrawing();
     }
-    while(*state == 'a'){
+    while (*state == 'a') {
 
-            strcpy(text, "Selecione o Modo de jogo:");
-            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA/4 -FONT_SIZE, FONT_SIZE, BLACK);
-            strcpy(text, "0 - padrao");
-            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE-10) / 2, ALTURA/4 -FONT_SIZE+100, FONT_SIZE-10, BLACK);
-            strcpy(text, "1 - geracao aleatoria");
-            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE-10) / 2, ALTURA/4 -FONT_SIZE+150, FONT_SIZE-10, BLACK);
+        strcpy(text, "Selecione o Modo de jogo:");
+        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 4 - FONT_SIZE, FONT_SIZE, BLACK);
+        strcpy(text, "1 - Padrao");
+        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 4 - FONT_SIZE + 100, FONT_SIZE - 10, BLACK);
+        strcpy(text, "2 - Survival Mode (infinito)");
+        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 4 - FONT_SIZE + 150, FONT_SIZE - 10, BLACK);
 
-            if(IsKeyPressed(KEY_ZERO) || IsKeyPressed(KEY_KP_0)){
-                modo_jogo = 0;
-                current_map = 1;
-                *state = 'n';
-                novo_jogo(state,nome, a );
-                were_played = 1;
-            }
-            if(IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_KP_1)){
-                modo_jogo = 1;
-                current_map = 1;
-                *state = 'n';
-                novo_jogo(state,nome,a);
-                were_played = 1;
-            }
-            BeginDrawing();
-            ClearBackground(RAYWHITE);
-            EndDrawing();
+        if (IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_KP_1)) {
+            game.modo_jogo = 0;
+            game.current_map = 1;
+            *state = 'n';
+            novo_jogo(state);
+            were_played = 1;
+        }
+        if (IsKeyPressed(KEY_TWO) || IsKeyPressed(KEY_KP_2)) {
+            game.modo_jogo = 1;
+            game.current_map = 1;
+            *state = 'n';
+            novo_jogo(state);
+        }
+
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+        EndDrawing();
     }
 }
 //--------------------------------------------------------------------------------------
 //---Funcao Principal-------------------------------------------------------------------
-int main(void)
-{                      //
+int main(void) //Funcao principal que apenas chama o menu
+{
+    //
     char state = '\0'; // Estados do jogo
-     ESTADO a,estadoSalvo;
-    char nome[60];
-
-     // hardcoded
-
-
-    printf("insira o nome do seu arquivo\n");
-    scanf("%s",&nome);
+    // char save_path[50] = "../saves/save.bin";
 
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
-
-    SetTargetFPS(20);
-    SalvaEstado(nome,estadoSalvo);
-    LeEstado(nome,&a);
-
+    SetTargetFPS(24);
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
 
-    while (state == '\0' || state == 'e')
-        menu(&state, 0,nome,a);
+    while (state == '\0' || state == 'e' || state == 'g' || state == 'p')
+        menu(&state, 0);
 
     CloseWindow(); // Fecha a janela e o contexto OpenGL
     return 0;
