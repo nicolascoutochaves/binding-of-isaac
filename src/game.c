@@ -39,6 +39,8 @@
 #define MAX_MAPS 10 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
 
 Texture2D spritesheet;
+int spritex = 0;
+int spritey = 0;
 
 typedef struct ENTIDADE {
     // Entidades means enemys or players
@@ -78,6 +80,7 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
 } GAME;
 
 GAME game = {0}; //Declaracao da struct game como global porque absolutamente tudo precia dessa struct e facilita muito os saves e loads
+Texture2D isaac;
 
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
 void menu(char *state, int were_played);
@@ -331,7 +334,6 @@ void DrawGame(){ //Funcao que desenha o jogo
     int i, j;
     BeginDrawing();            // Inicia o ambiente de desenho na tela
     ClearBackground(RAYWHITE); // Limpa a tela e define cor de fundo
-    DrawRectangle(game.player.x * FATORX + MARGIN_LEFT, game.player.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
 
     // Desenha o mapa na tela:
     for (i = 0; i < MAP_HEIGHT; i++) {
@@ -340,15 +342,7 @@ void DrawGame(){ //Funcao que desenha o jogo
                 DrawRectangle(j * FATORX + MARGIN_LEFT, i * FATORY + MARGIN_TOP, LADOX, LADOY, PURPLE);
         }
     }
-    //Desenha os inimigos
-    for (i = 0; i < game.n_gaper; i++) {
-        if(game.gaper[i].active)
-            DrawRectangle(game.gaper[i].x * FATORX + MARGIN_LEFT, game.gaper[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
-    }
-    for (i = 0; i < game.n_pooter; i++) {
-        if(game.pooter[i].active)
-            DrawRectangle(game.pooter[i].x * FATORX + MARGIN_LEFT, game.pooter[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, BROWN);
-    }
+
 
     //Desenha as bombas
     for (i = 0; i < game.n_bombas; i++) {
@@ -361,11 +355,46 @@ void DrawGame(){ //Funcao que desenha o jogo
         DrawRectangle(game.trap[i].x * FATORX + MARGIN_LEFT, game.trap[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, RED);
     }
 
-    // spritesheet = LoadTexture("../sprites/spritesheet.png");
-    // DrawTexture(spritesheet, game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, RAYWHITE);
 
     //Desenha o portal
     DrawRectangle(game.portal.x * FATORX + MARGIN_LEFT, game.portal.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GRAY); // Portal
+
+
+     //Desenha o player
+    DrawRectangle(game.player.x * FATORX + MARGIN_LEFT, game.player.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
+    Rectangle source;
+    Rectangle dest;
+    Vector2 origin;
+    
+    if(IsKeyDown(KEY_P)){
+        spritex += 32;
+        if(spritex > 320)
+            spritex = 0;
+    }
+    if(IsKeyPressed(KEY_O)){
+        spritey += 32;
+        if(spritex > (32*5))
+            spritex = 0;
+
+    }
+    source = (Rectangle){spritex, spritey,32,-32}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+
+    dest = (Rectangle){game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+    //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+
+    origin = (Vector2){LADO_QUADRADOX/2, LADO_QUADRADOY/2}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
+
+    DrawTexturePro(isaac, source, dest, origin, 0.0, RAYWHITE );
+
+    //Desenha os inimigos
+    for (i = 0; i < game.n_gaper; i++) {
+        if(game.gaper[i].active)
+            DrawRectangle(game.gaper[i].x * FATORX + MARGIN_LEFT, game.gaper[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
+    }
+    for (i = 0; i < game.n_pooter; i++) {
+        if(game.pooter[i].active)
+            DrawRectangle(game.pooter[i].x * FATORX + MARGIN_LEFT, game.pooter[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, BROWN);
+    }
 
 
     EndDrawing();
@@ -822,6 +851,7 @@ int main(void) //Funcao principal que apenas chama o menu
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
     SetTargetFPS(24);
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
+    isaac = LoadTexture("../sprites/isaac.png");
 
     while (state == '\0' || state == 'e' || state == 'g' || state == 'p')
         menu(&state, 0);
