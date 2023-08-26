@@ -34,13 +34,10 @@
 #define MAX_INIMIGOS 14
 #define MAX_TRAPS 20
 #define MAX_BOMBS 5
+#define DEATH_DELAY 2 //Tempo que o personagem fica morto
 
 //          Define o n maximo de mapas do modo normal:
 #define MAX_MAPS 10 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
-
-Texture2D spritesheet;
-int spritex = 0;
-int spritey = 0;
 
 typedef struct ENTIDADE {
     // Entidades means enemys or players
@@ -62,6 +59,11 @@ typedef struct ITEM {
     int y;
     bool active;
 } ITEM;
+typedef struct TIMER{
+    float death;
+    float moviment;
+    float invecible;
+} TIMER;
 typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para facilitar a manipulacao dos saves
     ITEM portal;
     ITEM trap[MAX_TRAPS];
@@ -80,7 +82,16 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
 } GAME;
 
 GAME game = {0}; //Declaracao da struct game como global porque absolutamente tudo precia dessa struct e facilita muito os saves e loads
+TIMER timer;
 Texture2D isaac;
+Color isaac_color = RAYWHITE;
+int spritex = 0;
+int spritey = 0;
+int s_sizex = 32, s_sizey = 32; //tamanhos das sprites
+int s_front = 0; //animacao frontal
+int s_back = 32; //animacao traseira
+int s_right = 64; //animacao direita
+int s_left = 96; //animacao esquerda
 
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
 void menu(char *state, int were_played);
@@ -214,18 +225,19 @@ void redefineDeslocamento(ENTIDADE *inimigo, int *steps) //Redefine o deslocamen
 //------------------------------------------------------------------------------------------------
 void movimentar(ENTIDADE *entidade) //Movimenta uma entidade dentro do mapa, evitando mover atraves das paredes
 {
-    entidade->collided = false;
-    if ((game.map[entidade->y][entidade->x + 1] == 0 && entidade->dx == 1) ||
-        (game.map[entidade->y][entidade->x - 1] == 0 && entidade->dx == -1)) {
-        entidade->collided = true;
-    } else
-        entidade->x += VELOCIDADE * entidade->dx;
+    if(timer.moviment > 0.05){
+        entidade->collided = false;
+        if (!(game.map[entidade->y][entidade->x + entidade->dx])) {
+            entidade->collided = true;
+        } else
+            entidade->x += VELOCIDADE * entidade->dx;
 
-    if ((game.map[entidade->y - 1][entidade->x] == 0 && entidade->dy == 1) ||
-        (game.map[entidade->y + 1][entidade->x] == 0 && entidade->dy == -1)) {
-        entidade->collided = true;
-    } else
-        entidade->y -= VELOCIDADE * entidade->dy;
+        if (!(game.map[entidade->y - entidade->dy][entidade->x])) {
+            entidade->collided = true;
+        } else
+            entidade->y -= VELOCIDADE * entidade->dy;
+    }
+    
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
@@ -271,25 +283,18 @@ void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exce
         for (i = 0; i < game.n_gaper; i++) {
             if ((game.player.x + game.player.dx == game.gaper[i].x && game.player.y == game.gaper[i].y) ||
                 (game.player.y - game.player.dy == game.gaper[i].y && game.player.x == game.gaper[i].x)) {
-                game.player.health--;
+                game.player.health -= 10;
                 game.player.collided = true;
-            }
-            if ((game.gaper[i].x + game.gaper[i].dx == game.player.x && game.gaper[i].y == game.player.y) ||
-                (game.gaper[i].y - game.gaper[i].dy == game.player.y && game.gaper[i].x == game.player.x)) {
-                game.gaper[i].collided = true;
             }
         }
     //Pooter:
         for (i = 0; i < game.n_pooter; i++) {
             if ((game.player.x + game.player.dx == game.pooter[i].x && game.player.y == game.pooter[i].y) ||
                 (game.player.y - game.player.dy == game.pooter[i].y && game.player.x == game.pooter[i].x)) {
-                game.player.health--;
+                game.player.health -= 10;
                 game.player.collided = true;
             }
-            if ((game.pooter[i].x + game.pooter[i].dx == game.player.x && game.pooter[i].y == game.player.y) ||
-                (game.pooter[i].y - game.pooter[i].dy == game.player.y && game.pooter[i].x == game.player.x)) {
-                game.pooter[i].collided = true;
-            }
+            
         }
 
         game.portal.active = true;
@@ -306,7 +311,7 @@ void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exce
         // Traps
         for (i = 0; i < game.n_traps; i++) {
             if (game.player.x == game.trap[i].x && game.player.y == game.trap[i].y) {
-                game.player.health -= 50;
+                game.player.health -= 70;
             }
         }
 
@@ -332,6 +337,10 @@ void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseg
 //------------------------------------------------------------------------------------------------
 void DrawGame(){ //Funcao que desenha o jogo
     int i, j;
+    Rectangle source;
+    Rectangle dest;
+    Vector2 origin;
+
     BeginDrawing();            // Inicia o ambiente de desenho na tela
     ClearBackground(RAYWHITE); // Limpa a tela e define cor de fundo
 
@@ -355,36 +364,51 @@ void DrawGame(){ //Funcao que desenha o jogo
         DrawRectangle(game.trap[i].x * FATORX + MARGIN_LEFT, game.trap[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, RED);
     }
 
+    
 
     //Desenha o portal
     DrawRectangle(game.portal.x * FATORX + MARGIN_LEFT, game.portal.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GRAY); // Portal
 
 
      //Desenha o player
-    DrawRectangle(game.player.x * FATORX + MARGIN_LEFT, game.player.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
-    Rectangle source;
-    Rectangle dest;
-    Vector2 origin;
+    char text[50];
+    sprintf(text, "death timer: %f", timer.death);
+    DrawText(text, LARGURA/2 - MeasureText(text, 40), ALTURA/2, 40, BLUE);
+    sprintf(text, "invencible timer: %f", timer.invecible);
+    DrawText(text, LARGURA/2 - MeasureText(text, 40), ALTURA/2+100, 40, BLUE);
+    sprintf(text, "moviment timer: %f", timer.moviment);
+    DrawText(text, LARGURA/2 - MeasureText(text, 40), ALTURA/2+200, 40, BLUE);
+
+    if(game.player.health <= 0){
+        isaac = LoadTexture("../sprites/isaac_dead.png");
+        spritex = 0;
+        spritey = 0;
+        if (timer.death >= DEATH_DELAY - 0.1){
+            isaac = LoadTexture("../sprites/isaac.png");
+        }
+    }
     
-    if(IsKeyDown(KEY_P)){
-        spritex += 32;
-        if(spritex > 320)
-            spritex = 0;
-    }
-    if(IsKeyPressed(KEY_O)){
-        spritey += 32;
-        if(spritex > (32*5))
-            spritex = 0;
-
-    }
-    source = (Rectangle){spritex, spritey,32,-32}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
-
+    if(game.player.dx == 0 && game.player.dy == 0)
+        spritex = 0;
+    if(game.player.dx == 1)
+        spritey = s_right;
+    else if(game.player.dx == -1)
+        spritey = s_left;
+    else if(game.player.dy == 1)
+        spritey = s_back;
+    else if(game.player.dy == -1)
+        spritey = s_front;
+    spritex += 32; //Realiza a animacao mudando a posicao da sprite
+    if(spritex > 32*10)
+        spritex = 0;
+    
+    
+    
+    source = (Rectangle){spritex, spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
     dest = (Rectangle){game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
     //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
-
-    origin = (Vector2){LADO_QUADRADOX/2, LADO_QUADRADOY/2}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
-
-    DrawTexturePro(isaac, source, dest, origin, 0.0, RAYWHITE );
+    origin = (Vector2){LADO_QUADRADOX/2, LADO_QUADRADOY}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
+    DrawTexturePro(isaac, source, dest, origin, 0.0, isaac_color);
 
     //Desenha os inimigos
     for (i = 0; i < game.n_gaper; i++) {
@@ -510,6 +534,9 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         game.player.health = 100;
         game.player.lives = 3;
         game.player.n_bombs = 0;
+        timer.death = 0;
+        timer.moviment = 0;
+        timer.invecible = 0;
     }
     game.isLoaded = false;
 
@@ -517,7 +544,8 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
     //-----------------------------------------------------------------------------
     while (!WindowShouldClose() && *state != 'q' && *state != 'n' && *state != 'p') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
-        //                  JOGADOR:
+        timer.moviment += GetFrameTime();
+
         // Verifica se o usuario apertou ESC
         if (IsKeyPressed(KEY_ESCAPE)) {
             puts("Game paused");
@@ -539,42 +567,58 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         if (IsKeyDown(KEY_S))
             game.player.dy = -1;
 
-        checkCollision();
 
-        // Portal
-        if (game.player.x == game.portal.x && game.player.y == game.portal.y && game.portal.active)
-            *state = 'p';
+        if (game.player.health <= 0) { //Muda as animacoes e ativa o modo invencivel quando o player morre
+            game.player.dx = 0;
+            game.player.dy = 0;
+            game.player.active = false;
+            timer.death += GetFrameTime();
+            isaac_color = (Color){255, 255, 255, 120};
+            if(timer.death > DEATH_DELAY){
+                game.player.lives--;
+                game.player.health = 100;
+                timer.death = 0;
+                timer.moviment = 0;
+            }
+        }
+        if(!game.player.active && !timer.death){
+            timer.invecible += GetFrameTime();
+            if(timer.invecible > 3){
+                game.player.active = true;
+                timer.invecible = 0;
+                isaac_color = RAYWHITE;
+            }
+        }
+        if(game.player.active)
+            checkCollision();
 
         // Movimentacao do jogador
         if (!game.player.collided)
             movimentar(&game.player);
         game.player.collided = false;
-        game.player.dx = 0;
-        game.player.dy = 0;
 
         // Movimentacao dos inimigos
 
         for (i = 0; i < game.n_gaper; i++) {
             if(game.gaper[i].active){
-                if (enemy_steps == 0)
-                    redefineDeslocamento(&game.gaper[i], &enemy_steps);
-                if (game.gaper[i].collided) {
-                    redefineDeslocamento(&game.gaper[i], &enemy_steps);
-                }
-                if (rayCast(game.gaper[i], game.player) != 0) {
-                    // Chama a funcao que verifica se tem paredes entre o game.gaper e o jogador
+                if (rayCast(game.gaper[i], game.player)) {
+                    // Chama a funcao que verifica se tem paredes entre o gaper e o jogador
                     game.gaper[i].canChase = false;
                 }
-                if (game.gaper[i].canChase && !game.gaper[i].collided) {
+                if (game.gaper[i].canChase && game.player.active) {
                     persegue(game.player, &game.gaper[i]);
                 } else {
+                    if (enemy_steps == 0)
+                        redefineDeslocamento(&game.gaper[i], &enemy_steps);
                     if (enemy_steps > 0) {
                         movimentar(&game.gaper[i]);
                         enemy_steps--;
                     }
+                    if (game.gaper[i].collided) {
+                        redefineDeslocamento(&game.gaper[i], &enemy_steps);
+                    }
                 }
                 game.gaper[i].canChase = true;
-                game.gaper[i].collided = false;
             }
         }
 
@@ -597,17 +641,12 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
                         enemy_steps--;
                     }
                 }
-                game.pooter[i].canChase = true;
-                game.pooter[i].collided = false;
+                
             }
 
         }
 
 
-        if (game.player.health < 1) {
-            game.player.lives--;
-            game.player.health = 100;
-        }
 
         printf("\nplayer health: %d\n", game.player.health);
         printf("player lives: %d\n", game.player.lives);
@@ -617,9 +656,13 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
             *state = 'p';
         }
 
+        // Portal
+        if ((game.player.x == game.portal.x && game.player.y == game.portal.y && game.portal.active) && game.player.active)
+            *state = 'p';
+
         // Game Over:
         if (IsKeyPressed(KEY_MINUS))
-            game.player.lives--;
+            game.player.health = 0;
         if (!game.player.lives) {
             char text[30];
             *state = 'g';
@@ -627,11 +670,16 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
             DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE + 10) / 2, ALTURA / 2 - FONT_SIZE + 10, FONT_SIZE, RED);
             return;
         }
-
+        if(timer.moviment > 0.05)
+            timer.moviment = 0;
         //---------------------------------------------------------------------------
         //---------------------------------------------------------------------------
         //                          DESENHAR JOGO:
         DrawGame();
+
+        //Reseta as direcoes do jogador pra ele nao ficar deslizando
+        game.player.dx = 0;
+        game.player.dy = 0;
     }
 
     //------------------------------------------------------------------------------------------------
@@ -849,7 +897,7 @@ int main(void) //Funcao principal que apenas chama o menu
     // char save_path[50] = "../saves/save.bin";
 
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
-    SetTargetFPS(24);
+    SetTargetFPS(60);
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
     isaac = LoadTexture("../sprites/isaac.png");
 
