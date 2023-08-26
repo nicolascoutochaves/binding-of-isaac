@@ -48,6 +48,8 @@ typedef struct ENTIDADE {
     int pontuacao;
     int bombs[MAX_BOMBS]; // Bombas
     int n_bombs;
+    int spritex; //posicao x e y das sprites
+    int spritey;
     bool active; //Retorna se esta vivo ou morto
     bool collided; //Retorna se entidade esta em colisao
     bool canChase; //Retorna se entidade pode perseguir um jogador
@@ -84,9 +86,12 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
 GAME game = {0}; //Declaracao da struct game como global porque absolutamente tudo precia dessa struct e facilita muito os saves e loads
 TIMER timer;
 Texture2D isaac;
+Texture2D gaper;
+Texture2D pooter;
+Texture2D background;
+Texture2D blocks;
+Texture2D doors;
 Color isaac_color = RAYWHITE;
-int spritex = 0;
-int spritey = 0;
 int s_sizex = 32, s_sizey = 32; //tamanhos das sprites
 int s_front = 0; //animacao frontal
 int s_back = 32; //animacao traseira
@@ -219,13 +224,13 @@ void redefineDeslocamento(ENTIDADE *inimigo, int *steps) //Redefine o deslocamen
             inimigo->dy = 1 - (rand() % 3);
     }
     if (*steps == 0)
-        *steps = (int)GetFrameTime() * 500 + (rand() % (int)(GetFrameTime() * 700)); // Define um tempo para o game.gaper se movimentar
+        *steps = (int)GetFrameTime() * 500 + (rand() % (int)(GetFrameTime() * 800)); // Define um tempo para o game.gaper se movimentar
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void movimentar(ENTIDADE *entidade) //Movimenta uma entidade dentro do mapa, evitando mover atraves das paredes
 {
-    if(timer.moviment > 0.05){
+    if(timer.moviment > 0.1){
         entidade->collided = false;
         if (!(game.map[entidade->y][entidade->x + entidade->dx])) {
             entidade->collided = true;
@@ -381,30 +386,30 @@ void DrawGame(){ //Funcao que desenha o jogo
 
     if(game.player.health <= 0){
         isaac = LoadTexture("../sprites/isaac_dead.png");
-        spritex = 0;
-        spritey = 0;
+        game.player.spritex = 0;
+        game.player.spritey = 0;
         if (timer.death >= DEATH_DELAY - 0.1){
             isaac = LoadTexture("../sprites/isaac.png");
         }
     }
     
     if(game.player.dx == 0 && game.player.dy == 0)
-        spritex = 0;
+        game.player.spritex = 0;
     if(game.player.dx == 1)
-        spritey = s_right;
+        game.player.spritey = s_right;
     else if(game.player.dx == -1)
-        spritey = s_left;
+        game.player.spritey = s_left;
     else if(game.player.dy == 1)
-        spritey = s_back;
+        game.player.spritey = s_back;
     else if(game.player.dy == -1)
-        spritey = s_front;
-    spritex += 32; //Realiza a animacao mudando a posicao da sprite
-    if(spritex > 32*10)
-        spritex = 0;
+        game.player.spritey = s_front;
+    game.player.spritex += 32; //Realiza a animacao mudando a posicao da sprite
+    if(game.player.spritex > 32*10)
+        game.player.spritex = 0;
     
     
     
-    source = (Rectangle){spritex, spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+    source = (Rectangle){game.player.spritex, game.player.spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
     dest = (Rectangle){game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
     //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
     origin = (Vector2){LADO_QUADRADOX/2, LADO_QUADRADOY}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
@@ -412,8 +417,24 @@ void DrawGame(){ //Funcao que desenha o jogo
 
     //Desenha os inimigos
     for (i = 0; i < game.n_gaper; i++) {
-        if(game.gaper[i].active)
-            DrawRectangle(game.gaper[i].x * FATORX + MARGIN_LEFT, game.gaper[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
+        if(game.gaper[i].active){
+            if(game.gaper[i].dx == 0 && game.gaper[i].dy == 0)
+                game.gaper[i].spritex = 0;
+            else{
+                game.gaper[i].spritex += 32;
+                if(game.gaper[i].spritex > 32*8){
+                    game.gaper[i].spritex = 0;
+                }
+                game.gaper[i].spritey = 0;
+            }
+                
+            
+            source = (Rectangle){game.gaper[i].spritex, game.gaper[i].spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+            dest = (Rectangle){game.gaper[i].x*FATORX+MARGIN_LEFT, game.gaper[i].y*FATORY+MARGIN_TOP, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+            //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+            origin = (Vector2){LADO_QUADRADOX/2, LADO_QUADRADOY}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
+            DrawTexturePro(gaper, source, dest, origin, 0.0, RAYWHITE);
+        }
     }
     for (i = 0; i < game.n_pooter; i++) {
         if(game.pooter[i].active)
@@ -670,7 +691,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
             DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE + 10) / 2, ALTURA / 2 - FONT_SIZE + 10, FONT_SIZE, RED);
             return;
         }
-        if(timer.moviment > 0.05)
+        if(timer.moviment > 0.1)
             timer.moviment = 0;
         //---------------------------------------------------------------------------
         //---------------------------------------------------------------------------
@@ -900,6 +921,8 @@ int main(void) //Funcao principal que apenas chama o menu
     SetTargetFPS(60);
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
     isaac = LoadTexture("../sprites/isaac.png");
+    gaper = LoadTexture("../sprites/gaper_front.png");
+    
 
     while (state == '\0' || state == 'e' || state == 'g' || state == 'p')
         menu(&state, 0);
