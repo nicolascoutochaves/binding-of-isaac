@@ -347,13 +347,20 @@ void DrawGame(){ //Funcao que desenha o jogo
     Vector2 origin;
 
     BeginDrawing();            // Inicia o ambiente de desenho na tela
-    ClearBackground(RAYWHITE); // Limpa a tela e define cor de fundo
+    ClearBackground(BLACK); // Limpa a tela e define cor de fundo
+    
+    source = (Rectangle){0, 0, 1200, 600}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+    dest = (Rectangle){MARGIN_LEFT, MARGIN_TOP, LARGURA, ALTURA-FATORY*10+MARGIN_TOP};
+    //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+    origin = (Vector2){0, 0}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
+    DrawTexturePro(background, source, dest, origin, 0.0, RAYWHITE);
+
 
     // Desenha o mapa na tela:
     for (i = 0; i < MAP_HEIGHT; i++) {
-        for (j = 0; j < MAP_WIDTH; j++) {
+        for (j = 0; j < MAP_WIDTH; j++) { 
             if (game.map[i][j] == 0)
-                DrawRectangle(j * FATORX + MARGIN_LEFT, i * FATORY + MARGIN_TOP, LADOX, LADOY, PURPLE);
+                DrawRectangle(j * FATORX + MARGIN_LEFT, i * FATORY + MARGIN_TOP, LADOX, LADOY, (Color){100,0,100,100});
         }
     }
 
@@ -922,6 +929,7 @@ int main(void) //Funcao principal que apenas chama o menu
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
     isaac = LoadTexture("../sprites/isaac.png");
     gaper = LoadTexture("../sprites/gaper_front.png");
+    background = LoadTexture("../sprites/basement3.png");
     
 
     while (state == '\0' || state == 'e' || state == 'g' || state == 'p')
