@@ -350,7 +350,7 @@ void DrawGame(){ //Funcao que desenha o jogo
     ClearBackground(BLACK); // Limpa a tela e define cor de fundo
     
     source = (Rectangle){0, 0, 1200, 600}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
-    dest = (Rectangle){MARGIN_LEFT, MARGIN_TOP, LARGURA, ALTURA-FATORY*10+MARGIN_TOP};
+    dest = (Rectangle){MARGIN_LEFT, MARGIN_TOP, LARGURA_MAPA, ALTURA_MAPA};
     //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
     origin = (Vector2){0, 0}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
     DrawTexturePro(background, source, dest, origin, 0.0, RAYWHITE);
