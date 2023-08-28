@@ -34,6 +34,7 @@
 #define MAX_INIMIGOS 14
 #define MAX_TRAPS 20
 #define MAX_BOMBS 5
+#define MAX_TIROS 10
 
 //          Define o n maximo de mapas do modo normal:
 #define MAX_MAPS 10 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
@@ -60,6 +61,12 @@ typedef struct ITEM {
     int y;
     bool active;
 } ITEM;
+
+typedef struct TIRO
+{
+    ENTIDADE ent;
+}TIRO;
+
 typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para facilitar a manipulacao dos saves
     ITEM portal;
     ITEM trap[MAX_TRAPS];
@@ -67,6 +74,7 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
     ENTIDADE player;
     ENTIDADE gaper[MAX_INIMIGOS/2]; //Inimigo que persegue o player quando esta no seu campo de visao
     ENTIDADE pooter[MAX_INIMIGOS/2]; //Inimigo que atira quando ve o player
+    TIRO tiro[MAX_TIROS];
     int map[MAP_HEIGHT][MAP_WIDTH];
     int current_map;
     int modo_jogo; // 1 e padrao, 2 e a geracao aleatoria
@@ -75,6 +83,8 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
     int n_bombas;
     int n_traps;
     bool isLoaded;
+    int frameCount;
+    int n_tiro;
 } GAME;
 
 GAME game = {0}; //Declaracao da struct game como global porque absolutamente tudo precia dessa struct e facilita muito os saves e loads
@@ -166,6 +176,7 @@ void spawnEnemies(ENTIDADE inimigo[], int n_inimigos) //Spawna os inimigos (na g
         }
         inimigo[i].x = x;
         inimigo[i].y = y;
+        inimigo[i].active = true;
         x = 0;
         y = 0;
     }
@@ -289,7 +300,7 @@ void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exce
             }
         }
 
-        game.portal.active = true;
+        //game.portal.active = true;
 
         // Colisoes com itens to mapa:
         // Bombas
@@ -328,7 +339,7 @@ void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseg
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void DrawGame(){ //Funcao que desenha o jogo
-    int i, j;
+    int i, j, t;
     BeginDrawing();            // Inicia o ambiente de desenho na tela
     ClearBackground(RAYWHITE); // Limpa a tela e define cor de fundo
     DrawRectangle(game.player.x * FATORX + MARGIN_LEFT, game.player.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
@@ -361,6 +372,19 @@ void DrawGame(){ //Funcao que desenha o jogo
         DrawRectangle(game.trap[i].x * FATORX + MARGIN_LEFT, game.trap[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, RED);
     }
 
+    //DESENHA A HUB
+        DrawText(TextFormat("TIME: %.02f", (float)game.frameCount/60), 10, (MAP_HEIGHT*FATORY)+50, 20, BLACK);
+        DrawText(TextFormat("VIDA: %d", game.player.health), 10,(MAP_HEIGHT*FATORY)+70, 20, BLACK);
+        DrawText(TextFormat("BOMBAS: %d", game.player.n_bombs), 10,(MAP_HEIGHT*FATORY)+90, 20, BLACK);
+        DrawText(TextFormat("PONTUACAO: %d", game.player.pontuacao), 10,(MAP_HEIGHT*FATORY)+110, 20, BLACK);
+
+    //DESENHA OS TIROS
+        for(i=0; i <= game.n_tiro; i++){
+            if(game.tiro[i].ent.active ==  true){
+                DrawRectangle(game.tiro[i].ent.x * FATORX + MARGIN_LEFT, game.tiro[i].ent.y * FATORY + MARGIN_TOP, LADOX, LADOY, YELLOW);
+            }
+        }
+
     // spritesheet = LoadTexture("../sprites/spritesheet.png");
     // DrawTexture(spritesheet, game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, RAYWHITE);
 
@@ -381,6 +405,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
 
     int i, j;
     int x = 0, y = 0;
+
     puts("\nStarting new game...\n");
 
     if (!game.isLoaded) { //Reseta o numero de itens e inimigos caso o jogo NAO tenha sido carregado a partir de um save
@@ -388,6 +413,9 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         game.n_gaper = 0;
         game.n_pooter = 0;
         game.n_traps = 0;
+        game.n_tiro = 0;
+        game.frameCount = 0;
+        game.player.pontuacao = 0;
     }
 
     if (!game.modo_jogo) {
@@ -438,6 +466,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         }
         game.player.x = x;
         game.player.y = y;
+        game.player.active = true;
         puts("Setted player spawn");
 
         // Portal
@@ -511,6 +540,128 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
             game.player.dy = -1;
 
         checkCollision();
+
+        //-----------------------------------------------------------------------------
+        //-----------------------------------------------------------------------------
+        //            TIROS
+
+        if(IsKeyPressed(KEY_RIGHT)){
+            game.tiro[game.n_tiro].ent.x = game.player.x;
+            game.tiro[game.n_tiro].ent.y = game.player.y;
+            game.tiro[game.n_tiro].ent.dx = 1;
+            game.tiro[game.n_tiro].ent.dy = 0;
+
+            game.tiro[game.n_tiro].ent.x += VELOCIDADE;
+            game.tiro[game.n_tiro].ent.active = true;
+            game.n_tiro++;
+        }
+        if(IsKeyPressed(KEY_LEFT)){
+            game.tiro[game.n_tiro].ent.x = game.player.x;
+            game.tiro[game.n_tiro].ent.y = game.player.y;
+            game.tiro[game.n_tiro].ent.dx = -1;
+            game.tiro[game.n_tiro].ent.dy = 0;
+            game.tiro[game.n_tiro].ent.active = true;
+            game.n_tiro++;
+        }
+        if(IsKeyPressed(KEY_UP)){
+            game.tiro[game.n_tiro].ent.x = game.player.x;
+            game.tiro[game.n_tiro].ent.y = game.player.y;
+            game.tiro[game.n_tiro].ent.dx = 0;
+            game.tiro[game.n_tiro].ent.dy = 1;
+            game.tiro[game.n_tiro].ent.active = true;
+            game.n_tiro++;
+        }
+        if(IsKeyPressed(KEY_DOWN)){
+            game.tiro[game.n_tiro].ent.x = game.player.x;
+            game.tiro[game.n_tiro].ent.y = game.player.y;
+            game.tiro[game.n_tiro].ent.dx = 0;
+            game.tiro[game.n_tiro].ent.dy = -1;
+            game.tiro[game.n_tiro].ent.active = true;
+            game.n_tiro++;
+        }
+
+        //MOVIMENTAR OS TIROS
+        for(i = 0; i <= game.n_tiro; i++){
+            if(game.tiro[i].ent.x != NULL && game.tiro[i].ent.y != NULL){
+                if( game.tiro[i].ent.collided != true){
+                    movimentar(&game.tiro[i]);
+                }else{
+                    game.tiro[i].ent.active = false;
+                    game.tiro[i].ent.x = NULL;
+                    game.tiro[i].ent.y = NULL;
+                }
+            }
+        }
+
+        if(game.n_tiro >=10){
+            game.n_tiro =0;
+        }
+
+            //COLISAO DO TIRO COM OS INIMIGOS
+            //Gaper
+            for (i = 0; i < game.n_gaper; i++)
+            {
+                for(j = 0; j <= game.n_tiro; j++ ){
+                    if ((game.tiro[j].ent.x + game.tiro[j].ent.dx == game.gaper[i].x && game.tiro[j].ent.y == game.gaper[i].y) ||
+                        (game.tiro[j].ent.y - game.tiro[j].ent.dy == game.gaper[i].y && game.tiro[j].ent.x == game.gaper[i].x))
+                    {
+                        game.tiro[j].ent.collided = true;
+                        game.tiro[j].ent.active = false;
+                    }
+                    if ((game.gaper[i].x + game.gaper[i].dx == game.tiro[j].ent.x && game.gaper[i].y == game.tiro[j].ent.y) ||
+                        (game.gaper[i].y - game.gaper[i].dy == game.tiro[j].ent.y && game.gaper[i].x == game.tiro[j].ent.x))
+                    {
+                        game.gaper[i].collided = true;
+                        game.gaper[i].health--;
+
+                        if(game.gaper[i].health <= 0){
+                            game.gaper[i].active = false;
+                            game.gaper[i].x = NULL;
+                            game.gaper[i].y = NULL;
+                            game.player.pontuacao += 1000;
+                        }
+
+                    }
+                }
+            }
+
+        //Pooter:
+            for (i = 0; i < game.n_pooter; i++)
+            {
+                for(j = 0; j <= game.n_tiro; j++ ){
+                    if ((game.tiro[j].ent.x + game.tiro[j].ent.dx == game.pooter[i].x && game.tiro[j].ent.y == game.pooter[i].y) ||
+                        (game.tiro[j].ent.y - game.tiro[j].ent.dy == game.pooter[i].y && game.tiro[j].ent.x == game.pooter[i].x))
+                    {
+                        game.tiro[j].ent.collided = true;
+                        game.tiro[j].ent.active = false;
+                    }
+                    if ((game.pooter[i].x + game.pooter[i].dx == game.tiro[j].ent.x && game.pooter[i].y == game.tiro[j].ent.y) ||
+                        (game.pooter[i].y - game.pooter[i].dy == game.tiro[j].ent.y && game.pooter[i].x == game.tiro[j].ent.x))
+                    {
+                        game.pooter[i].collided = true;
+                        game.pooter[i].health--;
+
+                        if(game.pooter[i].health >= 0){
+                            game.pooter[i].active = false;
+                            game.player.pontuacao += 1000;
+                        }
+
+                    }
+                }
+            }
+
+        //PORTAL ATIVO OU NAO
+        for(i = 0; i < game.n_gaper; i++){
+            if(game.gaper[i].active){
+                game.portal.active = false;
+            }else{
+                game.portal.active = true;
+            }
+        }
+
+
+	    //ATUALIZA O TEMPO
+        game.frameCount++;
 
         // Portal
         if (game.player.x == game.portal.x && game.player.y == game.portal.y && game.portal.active)
