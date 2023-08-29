@@ -4,8 +4,8 @@
 #include <string.h>
 #include <ctype.h>
 
-#define LARGURA GetScreenWidth() // Largura da tela
-#define ALTURA GetScreenHeight() // Altura da tela
+#define LARGURA 1200 //GetScreenWidth() // Largura da tela
+#define ALTURA 600 //GetScreenHeight() // Altura da tela
 
 #define FONT_SIZE 40
 
@@ -230,7 +230,7 @@ void redefineDeslocamento(ENTIDADE *inimigo, int *steps) //Redefine o deslocamen
 //------------------------------------------------------------------------------------------------
 void movimentar(ENTIDADE *entidade) //Movimenta uma entidade dentro do mapa, evitando mover atraves das paredes
 {
-    if(timer.moviment > 0.1){
+     if(timer.moviment > 0.1){
         entidade->collided = false;
         if (!(game.map[entidade->y][entidade->x + entidade->dx])) {
             entidade->collided = true;
@@ -241,7 +241,7 @@ void movimentar(ENTIDADE *entidade) //Movimenta uma entidade dentro do mapa, evi
             entidade->collided = true;
         } else
             entidade->y -= VELOCIDADE * entidade->dy;
-    }
+    } 
     
 }
 //------------------------------------------------------------------------------------------------
@@ -680,7 +680,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         printf("player lives: %d\n", game.player.lives);
         printf("player bombs: %d\n", game.player.n_bombs);
 
-        if (IsKeyDown(KEY_SPACE)) {
+        if (IsKeyPressed(KEY_SPACE)) {
             *state = 'p';
         }
 
@@ -929,7 +929,7 @@ int main(void) //Funcao principal que apenas chama o menu
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
     isaac = LoadTexture("../sprites/isaac.png");
     gaper = LoadTexture("../sprites/gaper_front.png");
-    background = LoadTexture("../sprites/basement3.png");
+    background = LoadTexture("../sprites/basement1.png");
     
 
     while (state == '\0' || state == 'e' || state == 'g' || state == 'p')
