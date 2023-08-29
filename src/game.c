@@ -4,8 +4,8 @@
 #include <string.h>
 #include <ctype.h>
 
-#define LARGURA 1200 //GetScreenWidth() // Largura da tela
-#define ALTURA 600 //GetScreenHeight() // Altura da tela
+#define LARGURA GetScreenWidth() // Largura da tela
+#define ALTURA GetScreenHeight() // Altura da tela
 
 #define FONT_SIZE 40
 
@@ -22,17 +22,17 @@
 #define FATORX (LARGURA_MAPA / MAP_WIDTH) // Fator de conversao do eixo x
 #define FATORY (ALTURA_MAPA / MAP_HEIGHT) // Fator de conversao do eixo y
 
-#define LADOX (LARGURA_MAPA / MAP_WIDTH) // Espessura x das paredes do mapa
-#define LADOY (ALTURA_MAPA / MAP_HEIGHT) // Espessura em y das paredes do mapa
+#define LADOX 20 // Espessura x das paredes do mapa
+#define LADOY 20 // Espessura em y das paredes do mapa
 
 //--------------------------------------------------------------------------------------
 //              Personagens:
 
-#define LADO_QUADRADOX LADOX
-#define LADO_QUADRADOY LADOY
+#define LADO_QUADRADOX 20
+#define LADO_QUADRADOY 20
 #define VELOCIDADE 1
 #define MAX_INIMIGOS 14
-#define MAX_TRAPS 20
+#define MAX_TRAPS (MAP_HEIGHT*MAP_WIDTH)/4 // ate 1/4 do mapa pode ser trap
 #define MAX_BOMBS 5
 #define DEATH_DELAY 2 //Tempo que o personagem fica morto
 
@@ -137,30 +137,35 @@ void loadMap() //Carrega os mapas .txt
                     if (!game.isLoaded) {
                         switch (c) {
                         case 'J':
-                            game.map[i][j] = 2; // jogador
+                            
                             game.player.x = j;
                             game.player.y = i;
                             break;
                         case 'I':
-                            game.map[i][j] = 3; // Inimigo
+                            
                             game.gaper[game.n_gaper].x = j;
                             game.gaper[game.n_gaper].y = i;
                             game.n_gaper++; // incrementa game.n_gaper para verificar o proximo game.gaper
                             break;
+                        case 'Y':
+                            game.pooter[game.n_pooter].x = j;
+                            game.pooter[game.n_pooter].y = i;
+                            game.n_pooter++; // incrementa game.n_gaper para verificar o proximo game.gaper
+                            break;
                         case 'B':
-                            game.map[i][j] = 4; // Bomba
+                            
                             game.bomb[game.n_bombas].x = j;
                             game.bomb[game.n_bombas].y = i;
                             game.n_bombas++;
                             break;
                         case 'X':
-                            game.map[i][j] = 5; // Armadilha
+                            
                             game.trap[game.n_traps].x = j;
                             game.trap[game.n_traps].y = i;
                             game.n_traps++;
                             break;
                         case 'P':
-                            game.map[i][j] = 6; // Portal
+                            
                             game.portal.x = j;
                             game.portal.y = i;
                             break;
@@ -669,7 +674,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
                         enemy_steps--;
                     }
                 }
-                
+                game.pooter[i].canChase = true;
             }
 
         }
