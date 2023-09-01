@@ -46,6 +46,12 @@ int generateMap(int m[MAP_HEIGHT][MAP_WIDTH])
     srand(seed); //Gera a seed da funcao rand() usando o tempo do sistema
     printf("Map seed: %lld\n", seed);
 
+    for (i = 0; i < MAP_HEIGHT; i++) {
+        for (j = 0; j < MAP_WIDTH; j++) {
+            m[i][j] = 0;
+        }
+    }
+
 /*  Define a posicao i e j da matriz para que o tunel sempre comece a partir da posicao m[1][MAP_WIDTH - 2], que e a posicao do portal.
     Dessa forma garantimos que sempre havera um caminho livre ate o portal.
     Para iniciar em uma posicao aleatoria, utilize o trecho comentado abaixo:*/

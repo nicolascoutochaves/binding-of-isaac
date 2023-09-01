@@ -33,7 +33,9 @@
 #define VELOCIDADE 1
 #define MAX_INIMIGOS 14
 #define MAX_TRAPS (MAP_HEIGHT*MAP_WIDTH)/4 // ate 1/4 do mapa pode ser trap
-#define MAX_BOMBS 5
+#define MAX_BOMBS 15
+#define EXP_RADIUS 5
+#define EXP_AREA EXP_RADIUS*EXP_RADIUS*4
 #define DEATH_DELAY 2 //Tempo que o personagem fica morto
 
 //          Define o n maximo de mapas do modo normal:
@@ -59,7 +61,9 @@ typedef struct ENTIDADE {
 typedef struct ITEM {
     int x;
     int y;
+    float alive_time;
     bool active;
+    bool colectable;
 } ITEM;
 typedef struct TIMER{
     float death;
@@ -70,6 +74,7 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
     ITEM portal;
     ITEM trap[MAX_TRAPS];
     ITEM bomb[MAX_BOMBS];
+    ITEM explosion[EXP_AREA];
     ENTIDADE player;
     ENTIDADE gaper[MAX_INIMIGOS/2]; //Inimigo que persegue o player quando esta no seu campo de visao
     ENTIDADE pooter[MAX_INIMIGOS/2]; //Inimigo que atira quando ve o player
@@ -80,6 +85,8 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
     int n_pooter;
     int n_bombas;
     int n_traps;
+    int n_explosion;
+    char state;
     bool isLoaded;
 } GAME;
 
@@ -99,8 +106,8 @@ int s_right = 64; //animacao direita
 int s_left = 96; //animacao esquerda
 
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
-void menu(char *state, int were_played);
-int salvar_jogo(char *state, char filename[]);
+void menu(int were_played);
+int salvar_jogo(char filename[]);
 
 void loadMap() //Carrega os mapas .txt
 {
@@ -312,10 +319,17 @@ void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exce
         // Colisoes com itens to mapa:
         // Bombas
         for (i = 0; i < game.n_bombas; i++) {
-            if (game.player.x == game.bomb[i].x && game.player.y == game.bomb[i].y && game.bomb[i].active) {
-                game.player.bombs[i]++;
-                game.player.n_bombs++;
-                game.bomb[i].active = false;
+            if (game.player.x + game.player.dx == game.bomb[i].x && 
+                game.player.y - game.player.dy == game.bomb[i].y) {
+                if(game.bomb[i].colectable  && game.bomb[i].active){
+                    game.player.bombs[i]++;
+                    game.player.n_bombs++;
+                    game.bomb[i].active = false;
+
+                } else if (!game.bomb[i].colectable && game.bomb[i].active){
+                    game.player.collided = true;
+                }
+                
             }
         }
         // Traps
@@ -344,28 +358,106 @@ void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseg
     movimentar(gaper);
 }
 //------------------------------------------------------------------------------------------------
+int tmp = 0;
+void checkBombs(ENTIDADE *ent){
+    int i, exp_range;
+    
+    for(i = 0; i < game.n_bombas; i++){
+        if(game.bomb[i].active && !game.bomb[i].colectable){
+            game.bomb[i].alive_time += GetFrameTime();
+            char text[40];
+            sprintf(text, "bomb %d alive_time: %f", i, game.bomb[i].alive_time);
+            puts(text);
+        }
+        if(game.bomb[i].alive_time > 15){
+            game.bomb[i].active = false;
+            game.bomb[i].alive_time = 0;
+
+            for(exp_range = EXP_RADIUS; exp_range >= 0; exp_range--){
+                if(game.map[game.bomb[i].y][game.bomb[i].x+exp_range]){
+                    game.n_explosion++;
+                    tmp++;
+                    game.explosion[game.n_explosion-1].x = game.bomb[i].x+exp_range;
+                    game.explosion[game.n_explosion-1].y = game.bomb[i].y;
+                    game.explosion[game.n_explosion-1].active = true;
+                    
+                }
+                if(game.map[game.bomb[i].y][game.bomb[i].x-exp_range]){
+                    game.n_explosion++;
+                    tmp++;
+                    game.explosion[game.n_explosion-1].x = game.bomb[i].x-exp_range;
+                    game.explosion[game.n_explosion-1].y = game.bomb[i].y;
+                    game.explosion[game.n_explosion-1].active = true;
+                    
+                }
+                if(game.map[game.bomb[i].y-exp_range][game.bomb[i].x]){
+                    game.n_explosion++;
+                    tmp++;
+                    game.explosion[game.n_explosion-1].x = game.bomb[i].x;
+                    game.explosion[game.n_explosion-1].y = game.bomb[i].y-exp_range;
+                    game.explosion[game.n_explosion-1].active = true;
+                    
+                }
+                if(game.map[game.bomb[i].y+exp_range][game.bomb[i].x]){
+                    game.n_explosion++;
+                    tmp++;
+                    game.explosion[game.n_explosion-1].x = game.bomb[i].x;
+                    game.explosion[game.n_explosion-1].y = game.bomb[i].y+exp_range;
+                    game.explosion[game.n_explosion-1].active = true;
+                    
+                }
+                
+            }
+            
+        }
+        if(!game.bomb[i].active && !game.bomb[i].colectable){
+            game.bomb[i].alive_time += GetFrameTime();
+            if(game.bomb[i].alive_time > 9){
+                game.bomb[i].alive_time = 0;
+                game.bomb[i].colectable = true;
+                puts("explosao acabou!");
+                game.n_explosion -= tmp;
+                
+                tmp = 0;
+                
+            }
+        }
+
+    }
+    for(i = 0; i < game.n_explosion; i++){
+        if(ent->x == game.explosion[i].x && ent->y == game.explosion[i].y && ent->active){
+            ent->health = 0;
+            ent->active = false;
+        }
+    }
+}
 //------------------------------------------------------------------------------------------------
 void DrawGame(){ //Funcao que desenha o jogo
     int i, j;
     Rectangle source;
     Rectangle dest;
     Vector2 origin;
-
     BeginDrawing();            // Inicia o ambiente de desenho na tela
     ClearBackground(BLACK); // Limpa a tela e define cor de fundo
-    
+
+    origin = (Vector2){-MARGIN_LEFT, -MARGIN_TOP}; //Dar a margem do mapa
+
     source = (Rectangle){0, 0, 1200, 600}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
-    dest = (Rectangle){MARGIN_LEFT, MARGIN_TOP, LARGURA_MAPA, ALTURA_MAPA};
+    dest = (Rectangle){0, 0, LARGURA_MAPA, ALTURA_MAPA};
     //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
-    origin = (Vector2){0, 0}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
     DrawTexturePro(background, source, dest, origin, 0.0, RAYWHITE);
 
-
     // Desenha o mapa na tela:
-    for (i = 0; i < MAP_HEIGHT; i++) {
-        for (j = 0; j < MAP_WIDTH; j++) { 
-            if (game.map[i][j] == 0)
-                DrawRectangle(j * FATORX + MARGIN_LEFT, i * FATORY + MARGIN_TOP, LADOX, LADOY, (Color){100,0,100,100});
+    for (i = 2; i < MAP_HEIGHT-2; i++) {
+        for (j = 2; j < MAP_WIDTH-2; j++) { 
+            if (game.map[i][j] == 0){
+                DrawRectangle(j * FATORX + MARGIN_LEFT+1, i * FATORY + MARGIN_TOP+1, LADOX-2, LADOY-2, PURPLE);
+
+                source = (Rectangle){0, 0, LADOX, LADOY}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+                dest = (Rectangle){j * FATORX, i * FATORY, LADOX, LADOY};
+                //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+                DrawTexturePro(blocks, source, dest, origin, 0.0, RAYWHITE);
+            }
         }
     }
 
@@ -381,13 +473,24 @@ void DrawGame(){ //Funcao que desenha o jogo
         DrawRectangle(game.trap[i].x * FATORX + MARGIN_LEFT, game.trap[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, RED);
     }
 
+    //Explosao da bomba
+    for (i = 0; i < game.n_explosion; i++) {
+        DrawRectangle(game.explosion[i].x * FATORX + MARGIN_LEFT, game.explosion[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, ORANGE);
+    }
+
+
     
 
     //Desenha o portal
     DrawRectangle(game.portal.x * FATORX + MARGIN_LEFT, game.portal.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GRAY); // Portal
 
 
-     //Desenha o player
+     //Desenha o player e inimigos
+
+     origin = (Vector2){LADO_QUADRADOX/2-MARGIN_LEFT, LADO_QUADRADOY-MARGIN_TOP}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
+
+
+
     char text[50];
     sprintf(text, "death timer: %f", timer.death);
     DrawText(text, LARGURA/2 - MeasureText(text, 40), ALTURA/2, 40, BLUE);
@@ -420,11 +523,10 @@ void DrawGame(){ //Funcao que desenha o jogo
         game.player.spritex = 0;
     
     
-    
+    //DrawRectangle(game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, 20, 20, GREEN);
     source = (Rectangle){game.player.spritex, game.player.spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
-    dest = (Rectangle){game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+    dest = (Rectangle){game.player.x*FATORX, game.player.y*FATORY, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
     //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
-    origin = (Vector2){LADO_QUADRADOX/2, LADO_QUADRADOY}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
     DrawTexturePro(isaac, source, dest, origin, 0.0, isaac_color);
 
     //Desenha os inimigos
@@ -442,9 +544,8 @@ void DrawGame(){ //Funcao que desenha o jogo
                 
             
             source = (Rectangle){game.gaper[i].spritex, game.gaper[i].spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
-            dest = (Rectangle){game.gaper[i].x*FATORX+MARGIN_LEFT, game.gaper[i].y*FATORY+MARGIN_TOP, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+            dest = (Rectangle){game.gaper[i].x*FATORX, game.gaper[i].y*FATORY, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
             //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
-            origin = (Vector2){LADO_QUADRADOX/2, LADO_QUADRADOY}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
             DrawTexturePro(gaper, source, dest, origin, 0.0, RAYWHITE);
         }
     }
@@ -460,9 +561,14 @@ void DrawGame(){ //Funcao que desenha o jogo
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando e feito o load do save e quando avanca de fase)
+void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o load do save e quando avanca de fase)
 {
-    *state = '\0';
+    if(game.state == 'n'){
+        game.player.health = 100;
+        game.player.lives = 3;
+        game.player.n_bombs = 0;
+    }
+    game.state = '\0';
     int enemy_steps = 0;
 
     int i, j;
@@ -555,6 +661,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
 
         for (i = 0; i < game.n_bombas; i++) {
             game.bomb[i].active = true;
+            game.bomb[i].colectable = true;
         }
         for (i = 0; i < game.n_gaper; i++) {
             game.gaper[i].active = true;
@@ -564,27 +671,27 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         }
 
         game.portal.active = false;
-        game.player.health = 100;
-        game.player.lives = 3;
-        game.player.n_bombs = 0;
         timer.death = 0;
         timer.moviment = 0;
         timer.invecible = 0;
+
+
+        isaac = LoadTexture("../sprites/isaac.png");
     }
     game.isLoaded = false;
 
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------
-    while (!WindowShouldClose() && *state != 'q' && *state != 'n' && *state != 'p') {
+    while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
         timer.moviment += GetFrameTime();
 
         // Verifica se o usuario apertou ESC
         if (IsKeyPressed(KEY_ESCAPE)) {
             puts("Game paused");
-            *state = 'e';
-            menu(state, 1);
-            if (*state == 'g') {
+            game.state = 'e';
+            menu(1);
+            if (game.state == 'g') {
                 return; // Remove um bug de o jogador iniciar um novo jogo pelo pause e morrer na primeira fase e nao exibir o game over
             }
             //  Time(0.2);
@@ -652,6 +759,7 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
                     }
                 }
                 game.gaper[i].canChase = true;
+                checkBombs(&game.gaper[i]);
             }
         }
 
@@ -675,30 +783,40 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
                     }
                 }
                 game.pooter[i].canChase = true;
+                checkBombs(&game.pooter[i]);
             }
 
         }
-
-
-
-        printf("\nplayer health: %d\n", game.player.health);
+        if(IsKeyPressed(KEY_E) && game.player.active){
+            if(game.player.n_bombs > 0){
+                game.n_bombas++;
+                game.bomb[game.n_bombas-1].x = game.player.x;
+                game.bomb[game.n_bombas-1].y = game.player.y;
+                game.bomb[game.n_bombas-1].active = true;
+                game.bomb[game.n_bombas-1].colectable = false;
+                game.player.n_bombs--;
+            }
+        }
+        checkBombs(&game.player);
+        
+        /* printf("\nplayer health: %d\n", game.player.health);
         printf("player lives: %d\n", game.player.lives);
         printf("player bombs: %d\n", game.player.n_bombs);
-
+ */
         if (IsKeyPressed(KEY_SPACE)) {
-            *state = 'p';
+            game.state = 'p';
         }
 
         // Portal
         if ((game.player.x == game.portal.x && game.player.y == game.portal.y && game.portal.active) && game.player.active)
-            *state = 'p';
+            game.state = 'p';
 
         // Game Over:
         if (IsKeyPressed(KEY_MINUS))
             game.player.health = 0;
         if (!game.player.lives) {
             char text[30];
-            *state = 'g';
+            game.state = 'g';
             strcpy(text, "Game Over!");
             DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE + 10) / 2, ALTURA / 2 - FONT_SIZE + 10, FONT_SIZE, RED);
             return;
@@ -717,16 +835,16 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
 
     //------------------------------------------------------------------------------------------------
     //------------------------------------------------------------------------------------------------
-    if (*state == 'p') {
+    if (game.state == 'p') {
         puts("Changing current map...\n");
         if (game.current_map < MAX_MAPS)
             game.current_map++;
-        novo_jogo(state);
+        novo_jogo();
     }
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-int carregar_jogo(char *state, char filename[]) //Faz o load do save
+int carregar_jogo(char filename[]) //Faz o load do save
 {
     char text[50];
     int carregou = 0;
@@ -743,7 +861,7 @@ int carregar_jogo(char *state, char filename[]) //Faz o load do save
         fclose(savestate);
     }
 
-    while (*state == 'c') {
+    while (game.state == 'c') {
         BeginDrawing();
         ClearBackground(RAYWHITE);
         strcpy(text, "Jogo Carregado com sucesso!");
@@ -753,14 +871,14 @@ int carregar_jogo(char *state, char filename[]) //Faz o load do save
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 2 - FONT_SIZE - 10 + 70, FONT_SIZE - 10, BLACK);
 
         if (IsKeyPressed(KEY_ESCAPE))
-            *state = '\0';
+            game.state = '\0';
         EndDrawing();
     }
     return carregou;
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-int salvar_jogo(char *state, char filename[]) //Salva a struct game em um arquivo binario
+int salvar_jogo(char filename[]) //Salva a struct game em um arquivo binario
 {
     char text[50];
     FILE *savestate;
@@ -777,7 +895,7 @@ int salvar_jogo(char *state, char filename[]) //Salva a struct game em um arquiv
             fclose(savestate);
         }
     }
-    while (*state == 's') {
+    while (game.state == 's') {
         BeginDrawing();
         ClearBackground(RAYWHITE);
         if (game.modo_jogo) {
@@ -791,19 +909,19 @@ int salvar_jogo(char *state, char filename[]) //Salva a struct game em um arquiv
         strcpy(text, "Aperte ESC para continuar");
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 2 - FONT_SIZE - 10 + 70, FONT_SIZE - 10, BLACK);
         if (IsKeyPressed(KEY_ESCAPE))
-            *state = '\0';
+            game.state = '\0';
         EndDrawing();
     }
-    // menu(state, 1);
+    // menu( 1);
     return salvou;
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void sair_jogo(char *state) //Encerra o jogo apos perguntar se o usuario gostaria de salvar o jogo
+void sair_jogo() //Encerra o jogo apos perguntar se o usuario gostaria de salvar o jogo
 {
     char text[50];
     char save_path[50] = "../saves/save.bin";
-    while (*state != 'q') {
+    while (game.state != 'q') {
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
@@ -811,42 +929,42 @@ void sair_jogo(char *state) //Encerra o jogo apos perguntar se o usuario gostari
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 2 - FONT_SIZE, FONT_SIZE, BLACK);
 
         if (IsKeyPressed(KEY_S)) {
-            salvar_jogo(state, save_path);
-            *state = 'q';
+            salvar_jogo( save_path);
+            game.state = 'q';
         } else if (IsKeyPressed(KEY_N)) {
-            *state = 'q';
+            game.state = 'q';
         }
         EndDrawing();
     }
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void voltar_jogo(char *state) //Simplesmente retorna ao jogo
+void voltar_jogo() //Simplesmente retorna ao jogo
 {
-    *state = '\0';
+    game.state = '\0';
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void menu(char *state, int were_played) //Menu principal do jogo
+void menu(int were_played) //Menu principal do jogo
 {
     // Menu do jogo
     char text[100] = "";
     char save_path[50] = "../saves/save.bin";
 
-    while (*state == '\0' || *state == 'e' || *state == 'g') {
-        if (*state == 'g') {
+    while (game.state == '\0' || game.state == 'e' || game.state == 'g') {
+        if (game.state == 'g') {
             WaitTime(2);
-            *state = '\0';
+            game.state = '\0';
         }
 
         if (IsKeyPressed(KEY_N)) {
-            *state = 'a';
+            game.state = 'a';
         }
         if (IsKeyPressed(KEY_C)) {
-            *state = 'c';
-            if (carregar_jogo(state, save_path)) {
+            game.state = 'c';
+            if (carregar_jogo(save_path)) {
                 game.isLoaded = true;
-                novo_jogo(state);
+                novo_jogo();
             }
 
             else {
@@ -856,18 +974,18 @@ void menu(char *state, int were_played) //Menu principal do jogo
             }
         }
         if (IsKeyPressed(KEY_S) && were_played) {
-            *state = 's';
-            if (salvar_jogo(state, save_path))
+            game.state = 's';
+            if (salvar_jogo( save_path))
                 puts("Game saved sucessfully");
         }
         if (IsKeyPressed(KEY_Q)) {
             puts("Exiting game...");
-            *state = '0'; // atribui a '0' para poder sair do loop do menu.
-            sair_jogo(state);
+            game.state = '0'; // atribui a '0' para poder sair do loop do menu.
+            sair_jogo();
         }
         if (IsKeyPressed(KEY_V) && were_played) {
             puts("Game resumed");
-            *state = 'v';
+            game.state = 'v';
         }
         BeginDrawing();
         ClearBackground(RAYWHITE);
@@ -893,7 +1011,7 @@ void menu(char *state, int were_played) //Menu principal do jogo
         }
         EndDrawing();
     }
-    while (*state == 'a') {
+    while (game.state == 'a') {
 
         strcpy(text, "Selecione o Modo de jogo:");
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 4 - FONT_SIZE, FONT_SIZE, BLACK);
@@ -905,15 +1023,15 @@ void menu(char *state, int were_played) //Menu principal do jogo
         if (IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_KP_1)) {
             game.modo_jogo = 0;
             game.current_map = 1;
-            *state = 'n';
-            novo_jogo(state);
+            game.state = 'n';
+            novo_jogo();
             were_played = 1;
         }
         if (IsKeyPressed(KEY_TWO) || IsKeyPressed(KEY_KP_2)) {
             game.modo_jogo = 1;
             game.current_map = 1;
-            *state = 'n';
-            novo_jogo(state);
+            game.state = 'n';
+            novo_jogo();
         }
 
         BeginDrawing();
@@ -926,7 +1044,7 @@ void menu(char *state, int were_played) //Menu principal do jogo
 int main(void) //Funcao principal que apenas chama o menu
 {
     //
-    char state = '\0'; // Estados do jogo
+    game.state = '\0'; // Estados do jogo
     // char save_path[50] = "../saves/save.bin";
 
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
@@ -935,10 +1053,11 @@ int main(void) //Funcao principal que apenas chama o menu
     isaac = LoadTexture("../sprites/isaac.png");
     gaper = LoadTexture("../sprites/gaper_front.png");
     background = LoadTexture("../sprites/basement1.png");
+    blocks = LoadTexture("../sprites/block1.png");
     
 
-    while (state == '\0' || state == 'e' || state == 'g' || state == 'p')
-        menu(&state, 0);
+    while (game.state == '\0' || game.state == 'e' || game.state == 'g' || game.state == 'p')
+        menu(0);
 
     CloseWindow(); // Fecha a janela e o contexto OpenGL
     return 0;
