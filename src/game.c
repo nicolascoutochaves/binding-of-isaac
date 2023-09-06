@@ -33,9 +33,9 @@
 #define VELOCIDADE 1
 #define MAX_INIMIGOS 14
 #define MAX_TRAPS (MAP_HEIGHT*MAP_WIDTH)/4 // ate 1/4 do mapa pode ser trap
-#define MAX_BOMBS 15
+#define MAX_BOMBS 100
 #define EXP_RADIUS 5
-#define EXP_AREA EXP_RADIUS*EXP_RADIUS*4
+#define EXP_AREA EXP_RADIUS*EXP_RADIUS*400
 #define DEATH_DELAY 2 //Tempo que o personagem fica morto
 
 //          Define o n maximo de mapas do modo normal:
@@ -48,7 +48,6 @@ typedef struct ENTIDADE {
     int health; // Saude
     int lives;
     int pontuacao;
-    int bombs[MAX_BOMBS]; // Bombas
     int n_bombs;
     int spritex; //posicao x e y das sprites
     int spritey;
@@ -319,10 +318,9 @@ void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exce
         // Colisoes com itens to mapa:
         // Bombas
         for (i = 0; i < game.n_bombas; i++) {
-            if (game.player.x + game.player.dx == game.bomb[i].x && 
-                game.player.y - game.player.dy == game.bomb[i].y) {
+            if ((game.player.x + game.player.dx == game.bomb[i].x && game.player.y == game.bomb[i].y) ||
+                (game.player.y - game.player.dy == game.bomb[i].y && game.player.x == game.bomb[i].x)){
                 if(game.bomb[i].colectable  && game.bomb[i].active){
-                    game.player.bombs[i]++;
                     game.player.n_bombs++;
                     game.bomb[i].active = false;
 
@@ -332,6 +330,8 @@ void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exce
                 
             }
         }
+        if(game.player.x == game.bomb[game.n_bombas-1].x && game.player.y == game.bomb[game.n_bombas-1].y)
+            game.player.collided = false; //Corrige o bug do player botar a bomba e se prender dentro dela
         // Traps
         for (i = 0; i < game.n_traps; i++) {
             if (game.player.x == game.trap[i].x && game.player.y == game.trap[i].y) {
@@ -360,8 +360,8 @@ void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseg
 //------------------------------------------------------------------------------------------------
 int tmp = 0;
 void checkBombs(ENTIDADE *ent){
-    int i, exp_range;
-    
+    int i, j, exp_range;
+    int spread; // randomiza o formato da explosao
     for(i = 0; i < game.n_bombas; i++){
         if(game.bomb[i].active && !game.bomb[i].colectable){
             game.bomb[i].alive_time += GetFrameTime();
@@ -369,54 +369,67 @@ void checkBombs(ENTIDADE *ent){
             sprintf(text, "bomb %d alive_time: %f", i, game.bomb[i].alive_time);
             puts(text);
         }
-        if(game.bomb[i].alive_time > 15){
+        if(game.bomb[i].alive_time > 3){
             game.bomb[i].active = false;
             game.bomb[i].alive_time = 0;
 
-            for(exp_range = EXP_RADIUS; exp_range >= 0; exp_range--){
-                if(game.map[game.bomb[i].y][game.bomb[i].x+exp_range]){
-                    game.n_explosion++;
-                    tmp++;
-                    game.explosion[game.n_explosion-1].x = game.bomb[i].x+exp_range;
-                    game.explosion[game.n_explosion-1].y = game.bomb[i].y;
-                    game.explosion[game.n_explosion-1].active = true;
+            
+            for(exp_range = 0; exp_range < EXP_RADIUS; exp_range++){
+                spread =  (rand() % 3) - 1;
+                for(j = 0; j < EXP_RADIUS; j++){
                     
-                }
-                if(game.map[game.bomb[i].y][game.bomb[i].x-exp_range]){
-                    game.n_explosion++;
-                    tmp++;
-                    game.explosion[game.n_explosion-1].x = game.bomb[i].x-exp_range;
-                    game.explosion[game.n_explosion-1].y = game.bomb[i].y;
-                    game.explosion[game.n_explosion-1].active = true;
-                    
-                }
-                if(game.map[game.bomb[i].y-exp_range][game.bomb[i].x]){
-                    game.n_explosion++;
-                    tmp++;
-                    game.explosion[game.n_explosion-1].x = game.bomb[i].x;
-                    game.explosion[game.n_explosion-1].y = game.bomb[i].y-exp_range;
-                    game.explosion[game.n_explosion-1].active = true;
-                    
-                }
-                if(game.map[game.bomb[i].y+exp_range][game.bomb[i].x]){
-                    game.n_explosion++;
-                    tmp++;
-                    game.explosion[game.n_explosion-1].x = game.bomb[i].x;
-                    game.explosion[game.n_explosion-1].y = game.bomb[i].y+exp_range;
-                    game.explosion[game.n_explosion-1].active = true;
-                    
+                    if(game.map[game.bomb[i].y+j+spread][game.bomb[i].x+exp_range]){
+                        game.explosion[game.n_explosion].x = game.bomb[i].x+exp_range;
+                        game.explosion[game.n_explosion].y = game.bomb[i].y+j+spread;
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                        tmp++;
+                    } else j = EXP_RADIUS; // Quebra o loop se a explosao encontrar uma parede(para que a explosao nao atravesse paredes)
                 }
                 
-            }
+                 for(j = 0; j < EXP_RADIUS; j++){
+                    if(game.map[game.bomb[i].y+j+spread][game.bomb[i].x-exp_range]){
+                        game.explosion[game.n_explosion].x = game.bomb[i].x-exp_range;
+                        game.explosion[game.n_explosion].y = game.bomb[i].y+j+spread;
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                        tmp++;
+                    } else j = EXP_RADIUS;
+                }
+                
+                 for(j = 0; j < EXP_RADIUS; j++){
+                    
+                    if(game.map[game.bomb[i].y-exp_range][game.bomb[i].x+j+spread]){
+                        game.explosion[game.n_explosion].x = game.bomb[i].x+j+spread;
+                        game.explosion[game.n_explosion].y = game.bomb[i].y-exp_range;
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                        tmp++;
+                    } else j = EXP_RADIUS;
+                }
+            
+                for(j = 0; j < EXP_RADIUS; j++){
+                    
+                    if(game.map[game.bomb[i].y-exp_range][game.bomb[i].x-j+spread]){
+                        game.explosion[game.n_explosion].x = game.bomb[i].x-j+spread;
+                        game.explosion[game.n_explosion].y = game.bomb[i].y-exp_range;
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                        tmp++;
+                    } else j = EXP_RADIUS;
+                
+                }
+            }  
+               
             
         }
         if(!game.bomb[i].active && !game.bomb[i].colectable){
             game.bomb[i].alive_time += GetFrameTime();
-            if(game.bomb[i].alive_time > 9){
+            if(game.bomb[i].alive_time > 1.5){
                 game.bomb[i].alive_time = 0;
                 game.bomb[i].colectable = true;
                 puts("explosao acabou!");
-                game.n_explosion -= tmp;
+                game.n_explosion = 0;
                 
                 tmp = 0;
                 
@@ -425,7 +438,7 @@ void checkBombs(ENTIDADE *ent){
 
     }
     for(i = 0; i < game.n_explosion; i++){
-        if(ent->x == game.explosion[i].x && ent->y == game.explosion[i].y && ent->active){
+        if(ent->x == game.explosion[i].x && ent->y == game.explosion[i].y && ent->active && game.explosion[i].active){
             ent->health = 0;
             ent->active = false;
         }
@@ -491,13 +504,13 @@ void DrawGame(){ //Funcao que desenha o jogo
 
 
 
-    char text[50];
+  /*   char text[50];
     sprintf(text, "death timer: %f", timer.death);
-    DrawText(text, LARGURA/2 - MeasureText(text, 40), ALTURA/2, 40, BLUE);
+    puts(text);
     sprintf(text, "invencible timer: %f", timer.invecible);
-    DrawText(text, LARGURA/2 - MeasureText(text, 40), ALTURA/2+100, 40, BLUE);
+    puts(text);
     sprintf(text, "moviment timer: %f", timer.moviment);
-    DrawText(text, LARGURA/2 - MeasureText(text, 40), ALTURA/2+200, 40, BLUE);
+    puts(text); */
 
     if(game.player.health <= 0){
         isaac = LoadTexture("../sprites/isaac_dead.png");
@@ -662,6 +675,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         for (i = 0; i < game.n_bombas; i++) {
             game.bomb[i].active = true;
             game.bomb[i].colectable = true;
+            game.bomb[i].alive_time = 0;
         }
         for (i = 0; i < game.n_gaper; i++) {
             game.gaper[i].active = true;
@@ -669,13 +683,13 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         for (i = 0; i < game.n_bombas; i++) {
             game.pooter[i].active = true;
         }
+        game.n_explosion = 0;
 
         game.portal.active = false;
         timer.death = 0;
         timer.moviment = 0;
         timer.invecible = 0;
-
-
+        
         isaac = LoadTexture("../sprites/isaac.png");
     }
     game.isLoaded = false;
@@ -686,6 +700,16 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
         timer.moviment += GetFrameTime();
 
+        
+        if(IsKeyPressed(KEY_Y)){ //Especial do personagem
+            if(game.player.active)
+                game.player.active = false;
+            else
+                game.player.active = true;
+        }
+        if(!game.player.active){
+            isaac_color = (Color){255, 255, 255, 100};
+        }
         // Verifica se o usuario apertou ESC
         if (IsKeyPressed(KEY_ESCAPE)) {
             puts("Game paused");
@@ -713,7 +737,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             game.player.dy = 0;
             game.player.active = false;
             timer.death += GetFrameTime();
-            isaac_color = (Color){255, 255, 255, 120};
+            isaac_color = (Color){255, 255, 255, 100};
             if(timer.death > DEATH_DELAY){
                 game.player.lives--;
                 game.player.health = 100;
@@ -759,7 +783,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                     }
                 }
                 game.gaper[i].canChase = true;
-                checkBombs(&game.gaper[i]);
+                //checkBombs(&game.gaper[i]);
             }
         }
 
@@ -783,26 +807,33 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                     }
                 }
                 game.pooter[i].canChase = true;
-                checkBombs(&game.pooter[i]);
+                //checkBombs(&game.pooter[i]);
             }
 
         }
-        if(IsKeyPressed(KEY_E) && game.player.active){
+        
+
+        if((IsKeyPressed(KEY_E) && game.player.active)){
             if(game.player.n_bombs > 0){
                 game.n_bombas++;
                 game.bomb[game.n_bombas-1].x = game.player.x;
                 game.bomb[game.n_bombas-1].y = game.player.y;
+                
                 game.bomb[game.n_bombas-1].active = true;
                 game.bomb[game.n_bombas-1].colectable = false;
                 game.player.n_bombs--;
             }
+                
+                
+
         }
+        
         checkBombs(&game.player);
         
         /* printf("\nplayer health: %d\n", game.player.health);
-        printf("player lives: %d\n", game.player.lives);
+        printf("player lives: %d\n", game.player.lives);*/
         printf("player bombs: %d\n", game.player.n_bombs);
- */
+ 
         if (IsKeyPressed(KEY_SPACE)) {
             game.state = 'p';
         }
@@ -823,6 +854,9 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         }
         if(timer.moviment > 0.1)
             timer.moviment = 0;
+
+
+        
         //---------------------------------------------------------------------------
         //---------------------------------------------------------------------------
         //                          DESENHAR JOGO:
