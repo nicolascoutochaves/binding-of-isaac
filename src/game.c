@@ -54,15 +54,21 @@ typedef struct ENTIDADE {
     bool active; //Retorna se esta vivo ou morto
     bool collided; //Retorna se entidade esta em colisao
     bool canChase; //Retorna se entidade pode perseguir um jogador
+    Texture2D texture;
+    Color color;
 } ENTIDADE; // Struct usada para criar novas "entidades" como jogadores e inimigos.
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
 typedef struct ITEM {
     int x;
     int y;
+    int spritex;
+    int spritey;
     float alive_time;
     bool active;
     bool colectable;
+    Texture2D texture;
+    Color color;
 } ITEM;
 typedef struct TIMER{
     float death;
@@ -92,14 +98,12 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
 
 GAME game = {0}; //Declaracao da struct game como global porque absolutamente tudo precia dessa struct e facilita muito os saves e loads
 TIMER timer;
-Texture2D isaac;
-Texture2D gaper;
-Texture2D pooter;
-Texture2D boss;
+
 Texture2D background;
 Texture2D blocks;
-Texture2D doors;
-Color isaac_color = RAYWHITE;
+Texture2D door;
+
+//Acessa outras linhas do arquivo de sprite para realizar as animacoes:
 int s_sizex = 32, s_sizey = 32; //tamanhos das sprites
 int s_front = 0; //animacao frontal
 int s_back = 32; //animacao traseira
@@ -319,7 +323,6 @@ void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos 
             
         }
 
-        game.portal.active = true;
 
         // Colisoes com itens to mapa:
         // Bombas
@@ -516,7 +519,9 @@ void DrawGame(){ //Funcao que desenha o jogo
     //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
     DrawTexturePro(background, source, dest, origin, 0.0, RAYWHITE);
 
-    // Desenha o mapa na tela:
+    
+
+    // Desenha os blocos do mapa:
     for (i = 2; i < MAP_HEIGHT-2; i++) {
         for (j = 2; j < MAP_WIDTH-2; j++) { 
             if (game.map[i][j] == 0){
@@ -530,35 +535,79 @@ void DrawGame(){ //Funcao que desenha o jogo
         }
     }
 
+    
+    origin = (Vector2){LADO_QUADRADOX/2-MARGIN_LEFT, LADO_QUADRADOY-MARGIN_TOP}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
+    
+    //Deenha as traps
+    for (i = 0; i < game.n_traps; i++) {
+        game.trap[i].spritex += 31;
+        if(game.trap[i].spritex >= 31*50) game.trap[i].spritex = 0;
+
+        source = (Rectangle){game.trap[i].spritex, 0, 31, 32}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+        dest = (Rectangle){game.trap[i].x*FATORX, game.trap[i].y*FATORY+10, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+        //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+        DrawTexturePro(game.trap[0].texture, source, dest, origin, 0.0, RAYWHITE);
+    }
 
     //Desenha as bombas
     for (i = 0; i < game.n_bombas; i++) {
-        if (game.bomb[i].active)
-            DrawRectangle(game.bomb[i].x * FATORX + MARGIN_LEFT, game.bomb[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, BLACK);
+        if (game.bomb[i].active){
+            source = (Rectangle){game.bomb[i].spritex, 0, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+            dest = (Rectangle){game.bomb[i].x*FATORX+10, game.bomb[i].y*FATORY+20, LADO_QUADRADOX+5, LADO_QUADRADOY+5};
+            //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+
+            if(!game.bomb[i].colectable){
+                game.bomb[i].texture = LoadTexture("../sprites/bomb_active.png");
+                game.bomb[i].spritex += 32;
+                if(game.bomb[i].spritex >= 32*(60*3)) game.bomb[i].spritex = 0;
+                game.bomb[i].color = (Color){255, 200, 150, 255};
+                
+            }
+            DrawTexturePro(game.bomb[i].texture, source, dest, origin, 0.0, game.bomb[i].color);
+        }
     }
 
-    //Deenha as traps
-    for (i = 0; i < game.n_traps; i++) {
-        DrawRectangle(game.trap[i].x * FATORX + MARGIN_LEFT, game.trap[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, RED);
-    }
+    
 
     //Explosao da bomba
     for (i = 0; i < game.n_explosion; i++) {
-        DrawRectangle(game.explosion[i].x * FATORX + MARGIN_LEFT, game.explosion[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, ORANGE);
+        
+        game.explosion[i].spritex += 32;
+        if(game.explosion[i].spritex >= 32*(60*2)) game.explosion[i].spritex = 0;
+
+        source = (Rectangle){game.explosion[i].spritex, 0, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+        dest = (Rectangle){game.explosion[i].x*FATORX+10, game.explosion[i].y*FATORY+20, LADO_QUADRADOX, LADO_QUADRADOY};
+        //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+        DrawTexturePro(game.explosion[0].texture, source, dest, origin, 0.0, ORANGE);
     }
+
+
+    int orientation;
+    if(game.portal.x > MAP_WIDTH/2)
+        orientation = s_sizex;
+    else
+        orientation = -s_sizex;
+
+    //Desenha o portal
+    source = (Rectangle){game.portal.spritex, 0, orientation, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+    dest = (Rectangle){game.portal.x*FATORX, game.portal.y*FATORY+12, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+    //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+    DrawTexturePro(game.portal.texture, source, dest, origin, 0.0, RAYWHITE);
+
+    if(game.portal.active){
+        
+        DrawTexturePro(door, source, dest, origin, 0.0, RAYWHITE);
+    }
+
+
+     
 
 
     
 
-    //Desenha o portal
-    DrawRectangle(game.portal.x * FATORX + MARGIN_LEFT, game.portal.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GRAY); // Portal
 
 
-     //Desenha o player e inimigos
-
-     origin = (Vector2){LADO_QUADRADOX/2-MARGIN_LEFT, LADO_QUADRADOY-MARGIN_TOP}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
-
-
+    //Desenha o player e inimigos
 
   /*   char text[50];
     sprintf(text, "death timer: %f", timer.death);
@@ -569,11 +618,11 @@ void DrawGame(){ //Funcao que desenha o jogo
     puts(text); */
 
     if(game.player.health <= 0){
-        isaac = LoadTexture("../sprites/isaac_dead.png");
+        game.player.texture = LoadTexture("../sprites/isaac_dead.png");
         game.player.spritex = 0;
         game.player.spritey = 0;
         if (timer.death >= DEATH_DELAY - 0.1){
-            isaac = LoadTexture("../sprites/isaac.png");
+            game.player.texture = LoadTexture("../sprites/isaac.png");
         }
     }
     
@@ -596,7 +645,7 @@ void DrawGame(){ //Funcao que desenha o jogo
     source = (Rectangle){game.player.spritex, game.player.spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
     dest = (Rectangle){game.player.x*FATORX, game.player.y*FATORY, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
     //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
-    DrawTexturePro(isaac, source, dest, origin, 0.0, isaac_color);
+    DrawTexturePro(game.player.texture, source, dest, origin, 0.0, game.player.color);
 
     //Desenha os inimigos
     for (i = 0; i < game.n_gaper; i++) {
@@ -615,7 +664,7 @@ void DrawGame(){ //Funcao que desenha o jogo
             source = (Rectangle){game.gaper[i].spritex, game.gaper[i].spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
             dest = (Rectangle){game.gaper[i].x*FATORX, game.gaper[i].y*FATORY, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
             //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
-            DrawTexturePro(gaper, source, dest, origin, 0.0, RAYWHITE);
+            DrawTexturePro(game.gaper[0].texture, source, dest, origin, 0.0, RAYWHITE);
         }
     }
     for (i = 0; i < game.n_pooter; i++) {
@@ -623,14 +672,14 @@ void DrawGame(){ //Funcao que desenha o jogo
             source = (Rectangle){game.pooter[i].spritex, game.pooter[i].spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
             dest = (Rectangle){game.pooter[i].x*FATORX, game.pooter[i].y*FATORY, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
             //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
-            DrawTexturePro(pooter, source, dest, origin, 0.0, RAYWHITE);
+            DrawTexturePro(game.pooter[0].texture, source, dest, origin, 0.0, RAYWHITE);
         }
     }
     if(game.boss.active){
             source = (Rectangle){game.boss.spritex, game.boss.spritey, s_sizex*4, s_sizey*4}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
             dest = (Rectangle){game.boss.x*FATORX, game.boss.y*FATORY, LADO_QUADRADOX*2*4, LADO_QUADRADOY*2*4};
             //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
-            DrawTexturePro(boss, source, dest, origin, 0.0, RAYWHITE);
+            DrawTexturePro(game.boss.texture, source, dest, origin, 0.0, RAYWHITE);
         }
     
 
@@ -712,6 +761,22 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         game.player.y = y;
         puts("Setted player spawn");
 
+        if(game.current_map == 10){
+            x = 0;
+            y = 0;
+            while (game.map[y][x] == 0) {
+                x = 3 + (rand() % MAP_WIDTH - 3);              
+                y = 3 + rand() % ((MAP_HEIGHT - 3) / 2); // ENTIDADE spawna em qualquer posicao livre do mapa
+            }
+            game.boss.x = x;
+            game.boss.y = y;
+            puts("Setted player spawn");
+        }
+
+
+
+
+
         // Portal
 
         game.portal.x = MAP_WIDTH - 2;
@@ -735,6 +800,13 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
     }
     if (!game.isLoaded) {
         game.boss.active = true;
+        if(game.current_map == 10){
+            game.boss.health = 1000;
+        } else{
+            game.boss.health = -1;
+        }
+
+
         for (i = 0; i < game.n_gaper; i++) {
             redefineDeslocamento(&game.gaper[i], &enemy_steps);
         }
@@ -744,6 +816,8 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             game.bomb[i].active = true;
             game.bomb[i].colectable = true;
             game.bomb[i].alive_time = 0;
+            game.bomb[i].texture = LoadTexture("../sprites/bomb_idle.png");
+            game.bomb[i].color = RAYWHITE;
         }
         for (i = 0; i < game.n_gaper; i++) {
             game.gaper[i].active = true;
@@ -757,7 +831,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         timer.moviment = 0;
         timer.invecible = 0;
         
-        isaac = LoadTexture("../sprites/isaac.png");
+        game.player.texture = LoadTexture("../sprites/isaac.png");
     }
     game.isLoaded = false;
 
@@ -765,10 +839,15 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
     //-----------------------------------------------------------------------------
     while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
-        timer.moviment += GetFrameTime();
-        if(game.current_map != 10)
-            game.boss.active = false;
 
+        game.portal.active = true;
+
+        timer.moviment += GetFrameTime();
+
+        if(game.boss.health <= 0){
+            game.boss.active = false;
+        }
+        
         
         if(IsKeyPressed(KEY_Y)){ //Especial do personagem
             if(game.player.active)
@@ -777,7 +856,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                 game.player.active = true;
         }
         if(!game.player.active){
-            isaac_color = (Color){255, 255, 255, 100};
+            game.player.color = (Color){255, 255, 255, 100};
         }
         // Verifica se o usuario apertou ESC
         if (IsKeyPressed(KEY_ESCAPE)) {
@@ -805,7 +884,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             game.player.dy = 0;
             game.player.active = false;
             timer.death += GetFrameTime();
-            isaac_color = (Color){255, 255, 255, 100};
+            game.player.color = (Color){255, 255, 255, 100};
             if(timer.death > DEATH_DELAY){
                 game.player.lives--;
                 game.player.health = 100;
@@ -818,7 +897,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             if(timer.invecible > 3){
                 game.player.active = true;
                 timer.invecible = 0;
-                isaac_color = RAYWHITE;
+                game.player.color = RAYWHITE;
             }
         }
         if(game.player.active)
@@ -1153,12 +1232,21 @@ int main(void) //Funcao principal que apenas chama o menu
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
     SetTargetFPS(60);
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
-    isaac = LoadTexture("../sprites/isaac.png");
-    gaper = LoadTexture("../sprites/gaper_front.png");
-    pooter = LoadTexture("../sprites/pooter_front.png");
+
     background = LoadTexture("../sprites/basement1.png");
     blocks = LoadTexture("../sprites/block1.png");
-    boss = LoadTexture("../sprites/monstro.png");
+    door = LoadTexture("../sprites/door1.png");
+
+    game.player.texture = LoadTexture("../sprites/isaac.png");
+    game.player.color = RAYWHITE;
+    game.boss.texture = LoadTexture("../sprites/monstro.png");
+    game.gaper[0].texture = LoadTexture("../sprites/gaper_front.png");
+    game.pooter[0].texture = LoadTexture("../sprites/pooter_front.png");
+    game.trap[0].texture = LoadTexture("../sprites/trap.png");
+    game.explosion[0].texture = LoadTexture("../sprites/explosion.png");
+    
+    game.portal.texture = LoadTexture("../sprites/portal1.png");
+    
     
 
     while (game.state == '\0' || game.state == 'e' || game.state == 'g' || game.state == 'p')

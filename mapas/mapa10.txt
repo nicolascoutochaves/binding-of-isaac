@@ -1,6 +1,6 @@
 ############################################################
-#############################P##############################
-##XXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXX##
+############################################################
+##XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX##
 ##X                                                      X##
 ##X J                                              F     X##
 ##X                                                      X##
@@ -13,7 +13,7 @@
 ##X                                                      X##
 ##X                                                      X##
 ##X                                                      X##
-##X                                                      X##
+##X                                                       P#
 ##X                                                      X##
 ##X                                                      X##
 ##X                                                      X##
