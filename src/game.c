@@ -34,7 +34,7 @@
 #define MAX_INIMIGOS 14
 #define MAX_TRAPS (MAP_HEIGHT*MAP_WIDTH)/4 // ate 1/4 do mapa pode ser trap
 #define MAX_BOMBS 100
-#define EXP_RADIUS 5
+#define EXP_RADIUS 6
 #define EXP_AREA EXP_RADIUS*EXP_RADIUS*400
 #define DEATH_DELAY 2 //Tempo que o personagem fica morto
 
@@ -77,6 +77,7 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
     ENTIDADE player;
     ENTIDADE gaper[MAX_INIMIGOS/2]; //Inimigo que persegue o player quando esta no seu campo de visao
     ENTIDADE pooter[MAX_INIMIGOS/2]; //Inimigo que atira quando ve o player
+    ENTIDADE boss;
     int map[MAP_HEIGHT][MAP_WIDTH];
     int current_map;
     int modo_jogo; // 1 e padrao, 2 e a geracao aleatoria
@@ -94,6 +95,7 @@ TIMER timer;
 Texture2D isaac;
 Texture2D gaper;
 Texture2D pooter;
+Texture2D boss;
 Texture2D background;
 Texture2D blocks;
 Texture2D doors;
@@ -157,6 +159,10 @@ void loadMap() //Carrega os mapas .txt
                             game.pooter[game.n_pooter].x = j;
                             game.pooter[game.n_pooter].y = i;
                             game.n_pooter++; // incrementa game.n_gaper para verificar o proximo game.gaper
+                            break;
+                        case 'F':
+                            game.boss.x = j;
+                            game.boss.y = i;
                             break;
                         case 'B':
                             
@@ -291,7 +297,7 @@ int rayCast(ENTIDADE a, ENTIDADE b) //Funcao que esstabelece um vetor posicao re
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exceto o portal)
+void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos e itens (exceto o portal)
     int i;
 
     // Colisoes com os inimigos
@@ -339,6 +345,13 @@ void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exce
             }
         }
 
+        for(i = 0; i < game.n_explosion; i++){
+        if(ent->x == game.explosion[i].x && ent->y == game.explosion[i].y && ent->active && game.explosion[i].active){
+            ent->health = 0;
+            ent->active = false;
+        }
+    }
+
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
@@ -358,71 +371,121 @@ void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseg
     movimentar(gaper);
 }
 //------------------------------------------------------------------------------------------------
-int tmp = 0;
-void checkBombs(ENTIDADE *ent){
+void checkBombs(){
+    int tmp = 0;
     int i, j, exp_range;
-    int spread; // randomiza o formato da explosao
+    int count, shape = 2; //Contador para modelar as explosoes -> shape significa quanto arredondado vai ser as explosoes
     for(i = 0; i < game.n_bombas; i++){
         if(game.bomb[i].active && !game.bomb[i].colectable){
             game.bomb[i].alive_time += GetFrameTime();
             char text[40];
             sprintf(text, "bomb %d alive_time: %f", i, game.bomb[i].alive_time);
             puts(text);
+            for(j = 0; j < game.n_explosion; j++){
+                if(game.bomb[i].x == game.explosion[j].x && game.bomb[i].y == game.explosion[j].y){
+                    game.bomb[i].alive_time = 4;
+                }
+            }
         }
         if(game.bomb[i].alive_time > 3){
             game.bomb[i].active = false;
             game.bomb[i].alive_time = 0;
+            tmp = 0;
+            count = -shape;
+            for(j = 0; j < EXP_RADIUS; j++){
+                exp_range = 0;
+                if(count <= 0) tmp = 0;
+                while(exp_range < EXP_RADIUS-tmp){
+                    game.explosion[game.n_explosion].y = game.bomb[i].y-exp_range;
+                    game.explosion[game.n_explosion].x = game.bomb[i].x+j;
+                    if(!game.map[game.explosion[game.n_explosion].y][game.bomb[i].x]){
+                        exp_range = EXP_RADIUS;
+                    }
+                    if(!game.map[game.bomb[i].y][game.explosion[game.n_explosion].x]){
+                        j = EXP_RADIUS;
+                    }
+                    if(exp_range != EXP_RADIUS && j != EXP_RADIUS){
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                    }
+                    exp_range++;
+                }
+                tmp++;
+                count++;
+            }
+            tmp = 0;
+            count = -shape;
+            for(j = 0; j < EXP_RADIUS; j++){
+                exp_range = 0;
+                if(count <= 0) tmp = 0;
+                while(exp_range < EXP_RADIUS-tmp){
+                    game.explosion[game.n_explosion].y = game.bomb[i].y-exp_range;
+                    game.explosion[game.n_explosion].x = game.bomb[i].x-j;
+                    if(!game.map[game.explosion[game.n_explosion].y][game.bomb[i].x]){
+                        exp_range = EXP_RADIUS;
+                    }
+                    if(!game.map[game.bomb[i].y][game.explosion[game.n_explosion].x]){
+                        j = EXP_RADIUS;
+                    }
+                    if(exp_range != EXP_RADIUS && j != EXP_RADIUS){
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                    }
+                    exp_range++;
+                }
+                tmp++;
+                count++;
+            }
 
-            
-            for(exp_range = 0; exp_range < EXP_RADIUS; exp_range++){
-                spread =  (rand() % 3) - 1;
-                for(j = 0; j < EXP_RADIUS; j++){
-                    
-                    if(game.map[game.bomb[i].y+j+spread][game.bomb[i].x+exp_range]){
-                        game.explosion[game.n_explosion].x = game.bomb[i].x+exp_range;
-                        game.explosion[game.n_explosion].y = game.bomb[i].y+j+spread;
+            tmp = 0;
+            count = -shape;
+            for(j = 0; j < EXP_RADIUS; j++){
+                exp_range = 0;
+                if(count <= 0) tmp = 0;
+                while(exp_range < EXP_RADIUS-tmp){
+                    game.explosion[game.n_explosion].y = game.bomb[i].y+exp_range;
+                    game.explosion[game.n_explosion].x = game.bomb[i].x+j;
+                    if(!game.map[game.explosion[game.n_explosion].y][game.bomb[i].x]){
+                        exp_range = EXP_RADIUS;
+                    }
+                    if(!game.map[game.bomb[i].y][game.explosion[game.n_explosion].x]){
+                        j = EXP_RADIUS;
+                    }
+                    if(exp_range != EXP_RADIUS && j != EXP_RADIUS){
                         game.explosion[game.n_explosion].active = true;
                         game.n_explosion++;
-                        tmp++;
-                    } else j = EXP_RADIUS; // Quebra o loop se a explosao encontrar uma parede(para que a explosao nao atravesse paredes)
+                    }
+                    exp_range++;
                 }
-                
-                 for(j = 0; j < EXP_RADIUS; j++){
-                    if(game.map[game.bomb[i].y+j+spread][game.bomb[i].x-exp_range]){
-                        game.explosion[game.n_explosion].x = game.bomb[i].x-exp_range;
-                        game.explosion[game.n_explosion].y = game.bomb[i].y+j+spread;
+                tmp++;
+                count++;
+            }
+            tmp = 0;
+            count = -shape;
+            for(j = 0; j < EXP_RADIUS; j++){
+                exp_range = 0;
+                if(count <= 0) tmp = 0;
+                while(exp_range < EXP_RADIUS-tmp){
+                    game.explosion[game.n_explosion].y = game.bomb[i].y+exp_range;
+                    game.explosion[game.n_explosion].x = game.bomb[i].x-j;
+                    if(!game.map[game.explosion[game.n_explosion].y][game.bomb[i].x]){
+                        exp_range = EXP_RADIUS;
+                    }
+                    if(!game.map[game.bomb[i].y][game.explosion[game.n_explosion].x]){
+                        j = EXP_RADIUS;
+                    }
+                    if(exp_range != EXP_RADIUS && j != EXP_RADIUS){
                         game.explosion[game.n_explosion].active = true;
                         game.n_explosion++;
-                        tmp++;
-                    } else j = EXP_RADIUS;
+                    }
+                    exp_range++;
                 }
-                
-                 for(j = 0; j < EXP_RADIUS; j++){
-                    
-                    if(game.map[game.bomb[i].y-exp_range][game.bomb[i].x+j+spread]){
-                        game.explosion[game.n_explosion].x = game.bomb[i].x+j+spread;
-                        game.explosion[game.n_explosion].y = game.bomb[i].y-exp_range;
-                        game.explosion[game.n_explosion].active = true;
-                        game.n_explosion++;
-                        tmp++;
-                    } else j = EXP_RADIUS;
-                }
-            
-                for(j = 0; j < EXP_RADIUS; j++){
-                    
-                    if(game.map[game.bomb[i].y-exp_range][game.bomb[i].x-j+spread]){
-                        game.explosion[game.n_explosion].x = game.bomb[i].x-j+spread;
-                        game.explosion[game.n_explosion].y = game.bomb[i].y-exp_range;
-                        game.explosion[game.n_explosion].active = true;
-                        game.n_explosion++;
-                        tmp++;
-                    } else j = EXP_RADIUS;
-                
-                }
-            }  
-               
-            
+                tmp++;
+                count++;
+            }
+                  
         }
+
         if(!game.bomb[i].active && !game.bomb[i].colectable){
             game.bomb[i].alive_time += GetFrameTime();
             if(game.bomb[i].alive_time > 1.5){
@@ -430,19 +493,12 @@ void checkBombs(ENTIDADE *ent){
                 game.bomb[i].colectable = true;
                 puts("explosao acabou!");
                 game.n_explosion = 0;
-                
-                tmp = 0;
-                
             }
+            
         }
-
+        
     }
-    for(i = 0; i < game.n_explosion; i++){
-        if(ent->x == game.explosion[i].x && ent->y == game.explosion[i].y && ent->active && game.explosion[i].active){
-            ent->health = 0;
-            ent->active = false;
-        }
-    }
+    
 }
 //------------------------------------------------------------------------------------------------
 void DrawGame(){ //Funcao que desenha o jogo
@@ -563,9 +619,20 @@ void DrawGame(){ //Funcao que desenha o jogo
         }
     }
     for (i = 0; i < game.n_pooter; i++) {
-        if(game.pooter[i].active)
-            DrawRectangle(game.pooter[i].x * FATORX + MARGIN_LEFT, game.pooter[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, BROWN);
+        if(game.pooter[i].active){
+            source = (Rectangle){game.pooter[i].spritex, game.pooter[i].spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+            dest = (Rectangle){game.pooter[i].x*FATORX, game.pooter[i].y*FATORY, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+            //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+            DrawTexturePro(pooter, source, dest, origin, 0.0, RAYWHITE);
+        }
     }
+    if(game.boss.active){
+            source = (Rectangle){game.boss.spritex, game.boss.spritey, s_sizex*4, s_sizey*4}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+            dest = (Rectangle){game.boss.x*FATORX, game.boss.y*FATORY, LADO_QUADRADOX*2*4, LADO_QUADRADOY*2*4};
+            //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+            DrawTexturePro(boss, source, dest, origin, 0.0, RAYWHITE);
+        }
+    
 
 
     EndDrawing();
@@ -667,6 +734,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         printf("Traps spawns sucessfully setted: %d traps in current map\n", game.n_traps);
     }
     if (!game.isLoaded) {
+        game.boss.active = true;
         for (i = 0; i < game.n_gaper; i++) {
             redefineDeslocamento(&game.gaper[i], &enemy_steps);
         }
@@ -684,7 +752,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             game.pooter[i].active = true;
         }
         game.n_explosion = 0;
-
         game.portal.active = false;
         timer.death = 0;
         timer.moviment = 0;
@@ -699,6 +766,8 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
     while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
         timer.moviment += GetFrameTime();
+        if(game.current_map != 10)
+            game.boss.active = false;
 
         
         if(IsKeyPressed(KEY_Y)){ //Especial do personagem
@@ -718,7 +787,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             if (game.state == 'g') {
                 return; // Remove um bug de o jogador iniciar um novo jogo pelo pause e morrer na primeira fase e nao exibir o game over
             }
-            //  Time(0.2);
         }
 
         // Define as direcoes dx e dy do jogador:
@@ -754,7 +822,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             }
         }
         if(game.player.active)
-            checkCollision();
+            checkCollision(&game.player);
 
         // Movimentacao do jogador
         if (!game.player.collided)
@@ -782,8 +850,9 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                         redefineDeslocamento(&game.gaper[i], &enemy_steps);
                     }
                 }
+                checkCollision(&game.gaper[i]);
                 game.gaper[i].canChase = true;
-                //checkBombs(&game.gaper[i]);
+            
             }
         }
 
@@ -806,14 +875,14 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                         enemy_steps--;
                     }
                 }
+                checkCollision(&game.pooter[i]);
                 game.pooter[i].canChase = true;
-                //checkBombs(&game.pooter[i]);
             }
 
         }
         
 
-        if((IsKeyPressed(KEY_E) && game.player.active)){
+        if((IsKeyPressed(KEY_E) && !timer.death)){
             if(game.player.n_bombs > 0){
                 game.n_bombas++;
                 game.bomb[game.n_bombas-1].x = game.player.x;
@@ -827,8 +896,8 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                 
 
         }
-        
-        checkBombs(&game.player);
+
+        checkBombs();
         
         /* printf("\nplayer health: %d\n", game.player.health);
         printf("player lives: %d\n", game.player.lives);*/
@@ -1086,8 +1155,10 @@ int main(void) //Funcao principal que apenas chama o menu
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
     isaac = LoadTexture("../sprites/isaac.png");
     gaper = LoadTexture("../sprites/gaper_front.png");
+    pooter = LoadTexture("../sprites/pooter_front.png");
     background = LoadTexture("../sprites/basement1.png");
     blocks = LoadTexture("../sprites/block1.png");
+    boss = LoadTexture("../sprites/monstro.png");
     
 
     while (game.state == '\0' || game.state == 'e' || game.state == 'g' || game.state == 'p')
