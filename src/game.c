@@ -38,6 +38,7 @@
 #define EXP_AREA EXP_RADIUS*EXP_RADIUS*400
 #define DEATH_DELAY 2 //Tempo que o personagem fica morto
 
+
 //          Define o n maximo de mapas do modo normal:
 #define MAX_MAPS 10 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
 
@@ -595,8 +596,7 @@ void DrawGame(){ //Funcao que desenha o jogo
     DrawTexturePro(game.portal.texture, source, dest, origin, 0.0, RAYWHITE);
 
     if(game.portal.active){
-        
-        DrawTexturePro(door, source, dest, origin, 0.0, RAYWHITE);
+        DrawTexturePro(door, source, dest, origin, 0.0, BLUE);
     }
 
 
@@ -840,7 +840,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
     while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
 
-        game.portal.active = true;
 
         timer.moviment += GetFrameTime();
 
