@@ -22,24 +22,27 @@
 #define FATORX (LARGURA_MAPA / MAP_WIDTH) // Fator de conversao do eixo x
 #define FATORY (ALTURA_MAPA / MAP_HEIGHT) // Fator de conversao do eixo y
 
-#define LADOX (LARGURA_MAPA / MAP_WIDTH) // Espessura x das paredes do mapa
-#define LADOY (ALTURA_MAPA / MAP_HEIGHT) // Espessura em y das paredes do mapa
+#define LADOX 20 // Espessura x das paredes do mapa
+#define LADOY 20 // Espessura em y das paredes do mapa
 
 //--------------------------------------------------------------------------------------
 //              Personagens:
 
-#define LADO_QUADRADOX LADOX
-#define LADO_QUADRADOY LADOY
+#define LADO_QUADRADOX 20
+#define LADO_QUADRADOY 20
 #define VELOCIDADE 1
 #define MAX_INIMIGOS 14
-#define MAX_TRAPS 20
-#define MAX_BOMBS 5
+#define MAX_TRAPS (MAP_HEIGHT*MAP_WIDTH)/4 // ate 1/4 do mapa pode ser trap
+#define MAX_BOMBS 100
+#define EXP_RADIUS 6
+#define EXP_AREA EXP_RADIUS*EXP_RADIUS*400
+#define DEATH_DELAY 2 //Tempo que o personagem fica morto
 #define MAX_TIROS 10
+
+
 
 //          Define o n maximo de mapas do modo normal:
 #define MAX_MAPS 10 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
-
-Texture2D spritesheet;
 
 typedef struct ENTIDADE {
     // Entidades means enemys or players
@@ -48,33 +51,51 @@ typedef struct ENTIDADE {
     int health; // Saude
     int lives;
     int pontuacao;
-    int bombs[MAX_BOMBS]; // Bombas
     int n_bombs;
+    int spritex; //posicao x e y das sprites
+    int spritey;
     bool active; //Retorna se esta vivo ou morto
     bool collided; //Retorna se entidade esta em colisao
     bool canChase; //Retorna se entidade pode perseguir um jogador
+    Texture2D texture;
+    Color color;
 } ENTIDADE; // Struct usada para criar novas "entidades" como jogadores e inimigos.
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
 typedef struct ITEM {
     int x;
     int y;
+    int spritex;
+    int spritey;
+    float alive_time;
     bool active;
+    bool colectable;
+    Texture2D texture;
+    Color color;
 } ITEM;
+
+typedef struct TIMER{
+    float death;
+    float moviment;
+    float invecible;
+} TIMER;
 
 typedef struct TIRO
 {
     ENTIDADE ent;
 }TIRO;
 
+
 typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para facilitar a manipulacao dos saves
     ITEM portal;
     ITEM trap[MAX_TRAPS];
     ITEM bomb[MAX_BOMBS];
+    ITEM explosion[EXP_AREA];
     ENTIDADE player;
     ENTIDADE gaper[MAX_INIMIGOS/2]; //Inimigo que persegue o player quando esta no seu campo de visao
     ENTIDADE pooter[MAX_INIMIGOS/2]; //Inimigo que atira quando ve o player
-    TIRO tiro[MAX_TIROS];
+    ENTIDADE boss;
+    ENTIDADE tiro[MAX_TIROS];
     int map[MAP_HEIGHT][MAP_WIDTH];
     int current_map;
     int modo_jogo; // 1 e padrao, 2 e a geracao aleatoria
@@ -82,16 +103,30 @@ typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para faci
     int n_pooter;
     int n_bombas;
     int n_traps;
+    int n_explosion;
+    char state;
     bool isLoaded;
     int frameCount;
     int n_tiro;
 } GAME;
 
 GAME game = {0}; //Declaracao da struct game como global porque absolutamente tudo precia dessa struct e facilita muito os saves e loads
+TIMER timer;
+
+Texture2D background;
+Texture2D blocks;
+Texture2D door;
+
+//Acessa outras linhas do arquivo de sprite para realizar as animacoes:
+int s_sizex = 32, s_sizey = 32; //tamanhos das sprites
+int s_front = 0; //animacao frontal
+int s_back = 32; //animacao traseira
+int s_right = 64; //animacao direita
+int s_left = 96; //animacao esquerda
 
 // Pre declaracao de funcoes (Pois como menu estava sendo declarado depois de novo_jogo, estava aparecendo warning no compilador)
-void menu(char *state, int were_played);
-int salvar_jogo(char *state, char filename[]);
+void menu(int were_played);
+int salvar_jogo(char filename[]);
 
 void loadMap() //Carrega os mapas .txt
 {
@@ -128,30 +163,39 @@ void loadMap() //Carrega os mapas .txt
                     if (!game.isLoaded) {
                         switch (c) {
                         case 'J':
-                            game.map[i][j] = 2; // jogador
+                            
                             game.player.x = j;
                             game.player.y = i;
                             break;
                         case 'I':
-                            game.map[i][j] = 3; // Inimigo
+                            
                             game.gaper[game.n_gaper].x = j;
                             game.gaper[game.n_gaper].y = i;
                             game.n_gaper++; // incrementa game.n_gaper para verificar o proximo game.gaper
                             break;
+                        case 'Y':
+                            game.pooter[game.n_pooter].x = j;
+                            game.pooter[game.n_pooter].y = i;
+                            game.n_pooter++; // incrementa game.n_gaper para verificar o proximo game.gaper
+                            break;
+                        case 'F':
+                            game.boss.x = j;
+                            game.boss.y = i;
+                            break;
                         case 'B':
-                            game.map[i][j] = 4; // Bomba
+                            
                             game.bomb[game.n_bombas].x = j;
                             game.bomb[game.n_bombas].y = i;
                             game.n_bombas++;
                             break;
                         case 'X':
-                            game.map[i][j] = 5; // Armadilha
+                            
                             game.trap[game.n_traps].x = j;
                             game.trap[game.n_traps].y = i;
                             game.n_traps++;
                             break;
                         case 'P':
-                            game.map[i][j] = 6; // Portal
+                            
                             game.portal.x = j;
                             game.portal.y = i;
                             break;
@@ -216,24 +260,25 @@ void redefineDeslocamento(ENTIDADE *inimigo, int *steps) //Redefine o deslocamen
             inimigo->dy = 1 - (rand() % 3);
     }
     if (*steps == 0)
-        *steps = (int)GetFrameTime() * 500 + (rand() % (int)(GetFrameTime() * 700)); // Define um tempo para o game.gaper se movimentar
+        *steps = (int)GetFrameTime() * 500 + (rand() % (int)(GetFrameTime() * 800)); // Define um tempo para o game.gaper se movimentar
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void movimentar(ENTIDADE *entidade) //Movimenta uma entidade dentro do mapa, evitando mover atraves das paredes
 {
-    entidade->collided = false;
-    if ((game.map[entidade->y][entidade->x + 1] == 0 && entidade->dx == 1) ||
-        (game.map[entidade->y][entidade->x - 1] == 0 && entidade->dx == -1)) {
-        entidade->collided = true;
-    } else
-        entidade->x += VELOCIDADE * entidade->dx;
+     if(timer.moviment > 0.1){
+        entidade->collided = false;
+        if (!(game.map[entidade->y][entidade->x + entidade->dx])) {
+            entidade->collided = true;
+        } else
+            entidade->x += VELOCIDADE * entidade->dx;
 
-    if ((game.map[entidade->y - 1][entidade->x] == 0 && entidade->dy == 1) ||
-        (game.map[entidade->y + 1][entidade->x] == 0 && entidade->dy == -1)) {
-        entidade->collided = true;
-    } else
-        entidade->y -= VELOCIDADE * entidade->dy;
+        if (!(game.map[entidade->y - entidade->dy][entidade->x])) {
+            entidade->collided = true;
+        } else
+            entidade->y -= VELOCIDADE * entidade->dy;
+    } 
+    
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
@@ -271,7 +316,7 @@ int rayCast(ENTIDADE a, ENTIDADE b) //Funcao que esstabelece um vetor posicao re
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exceto o portal)
+void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos e itens (exceto o portal)
     int i;
 
     // Colisoes com os inimigos
@@ -279,44 +324,52 @@ void checkCollision(){ //Checa as colisoes entre jogador, inimigos e itens (exce
         for (i = 0; i < game.n_gaper; i++) {
             if ((game.player.x + game.player.dx == game.gaper[i].x && game.player.y == game.gaper[i].y) ||
                 (game.player.y - game.player.dy == game.gaper[i].y && game.player.x == game.gaper[i].x)) {
-                game.player.health--;
+                game.player.health -= 10;
                 game.player.collided = true;
-            }
-            if ((game.gaper[i].x + game.gaper[i].dx == game.player.x && game.gaper[i].y == game.player.y) ||
-                (game.gaper[i].y - game.gaper[i].dy == game.player.y && game.gaper[i].x == game.player.x)) {
-                game.gaper[i].collided = true;
             }
         }
     //Pooter:
         for (i = 0; i < game.n_pooter; i++) {
             if ((game.player.x + game.player.dx == game.pooter[i].x && game.player.y == game.pooter[i].y) ||
                 (game.player.y - game.player.dy == game.pooter[i].y && game.player.x == game.pooter[i].x)) {
-                game.player.health--;
+                game.player.health -= 10;
                 game.player.collided = true;
             }
-            if ((game.pooter[i].x + game.pooter[i].dx == game.player.x && game.pooter[i].y == game.player.y) ||
-                (game.pooter[i].y - game.pooter[i].dy == game.player.y && game.pooter[i].x == game.player.x)) {
-                game.pooter[i].collided = true;
-            }
+            
         }
 
-        //game.portal.active = true;
+
 
         // Colisoes com itens to mapa:
         // Bombas
         for (i = 0; i < game.n_bombas; i++) {
-            if (game.player.x == game.bomb[i].x && game.player.y == game.bomb[i].y && game.bomb[i].active) {
-                game.player.bombs[i]++;
-                game.player.n_bombs++;
-                game.bomb[i].active = false;
+            if ((game.player.x + game.player.dx == game.bomb[i].x && game.player.y == game.bomb[i].y) ||
+                (game.player.y - game.player.dy == game.bomb[i].y && game.player.x == game.bomb[i].x)){
+                if(game.bomb[i].colectable  && game.bomb[i].active){
+                    game.player.n_bombs++;
+                    game.bomb[i].active = false;
+
+                } else if (!game.bomb[i].colectable && game.bomb[i].active){
+                    game.player.collided = true;
+                }
+                
             }
         }
+        if(game.player.x == game.bomb[game.n_bombas-1].x && game.player.y == game.bomb[game.n_bombas-1].y)
+            game.player.collided = false; //Corrige o bug do player botar a bomba e se prender dentro dela
         // Traps
         for (i = 0; i < game.n_traps; i++) {
             if (game.player.x == game.trap[i].x && game.player.y == game.trap[i].y) {
-                game.player.health -= 50;
+                game.player.health -= 70;
             }
         }
+
+        for(i = 0; i < game.n_explosion; i++){
+        if(ent->x == game.explosion[i].x && ent->y == game.explosion[i].y && ent->active && game.explosion[i].active){
+            ent->health = 0;
+            ent->active = false;
+        }
+    }
 
 }
 //------------------------------------------------------------------------------------------------
@@ -337,59 +390,324 @@ void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseg
     movimentar(gaper);
 }
 //------------------------------------------------------------------------------------------------
+void checkBombs(){
+    int tmp = 0;
+    int i, j, exp_range;
+    int count, shape = 2; //Contador para modelar as explosoes -> shape significa quanto arredondado vai ser as explosoes
+    for(i = 0; i < game.n_bombas; i++){
+        if(game.bomb[i].active && !game.bomb[i].colectable){
+            game.bomb[i].alive_time += GetFrameTime();
+            char text[40];
+            sprintf(text, "bomb %d alive_time: %f", i, game.bomb[i].alive_time);
+            puts(text);
+            for(j = 0; j < game.n_explosion; j++){
+                if(game.bomb[i].x == game.explosion[j].x && game.bomb[i].y == game.explosion[j].y){
+                    game.bomb[i].alive_time = 4;
+                }
+            }
+        }
+        if(game.bomb[i].alive_time > 3){
+            game.bomb[i].active = false;
+            game.bomb[i].alive_time = 0;
+            tmp = 0;
+            count = -shape;
+            for(j = 0; j < EXP_RADIUS; j++){
+                exp_range = 0;
+                if(count <= 0) tmp = 0;
+                while(exp_range < EXP_RADIUS-tmp){
+                    game.explosion[game.n_explosion].y = game.bomb[i].y-exp_range;
+                    game.explosion[game.n_explosion].x = game.bomb[i].x+j;
+                    if(!game.map[game.explosion[game.n_explosion].y][game.bomb[i].x]){
+                        exp_range = EXP_RADIUS;
+                    }
+                    if(!game.map[game.bomb[i].y][game.explosion[game.n_explosion].x]){
+                        j = EXP_RADIUS;
+                    }
+                    if(exp_range != EXP_RADIUS && j != EXP_RADIUS){
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                    }
+                    exp_range++;
+                }
+                tmp++;
+                count++;
+            }
+            tmp = 0;
+            count = -shape;
+            for(j = 0; j < EXP_RADIUS; j++){
+                exp_range = 0;
+                if(count <= 0) tmp = 0;
+                while(exp_range < EXP_RADIUS-tmp){
+                    game.explosion[game.n_explosion].y = game.bomb[i].y-exp_range;
+                    game.explosion[game.n_explosion].x = game.bomb[i].x-j;
+                    if(!game.map[game.explosion[game.n_explosion].y][game.bomb[i].x]){
+                        exp_range = EXP_RADIUS;
+                    }
+                    if(!game.map[game.bomb[i].y][game.explosion[game.n_explosion].x]){
+                        j = EXP_RADIUS;
+                    }
+                    if(exp_range != EXP_RADIUS && j != EXP_RADIUS){
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                    }
+                    exp_range++;
+                }
+                tmp++;
+                count++;
+            }
+
+            tmp = 0;
+            count = -shape;
+            for(j = 0; j < EXP_RADIUS; j++){
+                exp_range = 0;
+                if(count <= 0) tmp = 0;
+                while(exp_range < EXP_RADIUS-tmp){
+                    game.explosion[game.n_explosion].y = game.bomb[i].y+exp_range;
+                    game.explosion[game.n_explosion].x = game.bomb[i].x+j;
+                    if(!game.map[game.explosion[game.n_explosion].y][game.bomb[i].x]){
+                        exp_range = EXP_RADIUS;
+                    }
+                    if(!game.map[game.bomb[i].y][game.explosion[game.n_explosion].x]){
+                        j = EXP_RADIUS;
+                    }
+                    if(exp_range != EXP_RADIUS && j != EXP_RADIUS){
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                    }
+                    exp_range++;
+                }
+                tmp++;
+                count++;
+            }
+            tmp = 0;
+            count = -shape;
+            for(j = 0; j < EXP_RADIUS; j++){
+                exp_range = 0;
+                if(count <= 0) tmp = 0;
+                while(exp_range < EXP_RADIUS-tmp){
+                    game.explosion[game.n_explosion].y = game.bomb[i].y+exp_range;
+                    game.explosion[game.n_explosion].x = game.bomb[i].x-j;
+                    if(!game.map[game.explosion[game.n_explosion].y][game.bomb[i].x]){
+                        exp_range = EXP_RADIUS;
+                    }
+                    if(!game.map[game.bomb[i].y][game.explosion[game.n_explosion].x]){
+                        j = EXP_RADIUS;
+                    }
+                    if(exp_range != EXP_RADIUS && j != EXP_RADIUS){
+                        game.explosion[game.n_explosion].active = true;
+                        game.n_explosion++;
+                    }
+                    exp_range++;
+                }
+                tmp++;
+                count++;
+            }
+                  
+        }
+
+        if(!game.bomb[i].active && !game.bomb[i].colectable){
+            game.bomb[i].alive_time += GetFrameTime();
+            if(game.bomb[i].alive_time > 1.5){
+                game.bomb[i].alive_time = 0;
+                game.bomb[i].colectable = true;
+                puts("explosao acabou!");
+                game.n_explosion = 0;
+            }
+            
+        }
+        
+    }
+    
+}
 //------------------------------------------------------------------------------------------------
 void DrawGame(){ //Funcao que desenha o jogo
-    int i, j, t;
-    BeginDrawing();            // Inicia o ambiente de desenho na tela
-    ClearBackground(RAYWHITE); // Limpa a tela e define cor de fundo
-    DrawRectangle(game.player.x * FATORX + MARGIN_LEFT, game.player.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GREEN);
+    int i, j;
+    Rectangle source;
+    Rectangle dest;
+    Vector2 origin;
 
-    // Desenha o mapa na tela:
-    for (i = 0; i < MAP_HEIGHT; i++) {
-        for (j = 0; j < MAP_WIDTH; j++) {
-            if (game.map[i][j] == 0)
-                DrawRectangle(j * FATORX + MARGIN_LEFT, i * FATORY + MARGIN_TOP, LADOX, LADOY, PURPLE);
+    BeginDrawing();            // Inicia o ambiente de desenho na tela
+    ClearBackground(BLACK); // Limpa a tela e define cor de fundo
+
+    origin = (Vector2){-MARGIN_LEFT, -MARGIN_TOP}; //Dar a margem do mapa
+
+    source = (Rectangle){0, 0, 1200, 600}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+    dest = (Rectangle){0, 0, LARGURA_MAPA, ALTURA_MAPA};
+    //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+    DrawTexturePro(background, source, dest, origin, 0.0, RAYWHITE);
+
+    
+
+    // Desenha os blocos do mapa:
+    for (i = 2; i < MAP_HEIGHT-2; i++) {
+        for (j = 2; j < MAP_WIDTH-2; j++) { 
+            if (game.map[i][j] == 0){
+                DrawRectangle(j * FATORX + MARGIN_LEFT+1, i * FATORY + MARGIN_TOP+1, LADOX-2, LADOY-2, PURPLE);
+
+                source = (Rectangle){0, 0, LADOX, LADOY}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+                dest = (Rectangle){j * FATORX, i * FATORY, LADOX, LADOY};
+                //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+                DrawTexturePro(blocks, source, dest, origin, 0.0, RAYWHITE);
+            }
         }
     }
-    //Desenha os inimigos
-    for (i = 0; i < game.n_gaper; i++) {
-        if(game.gaper[i].active)
-            DrawRectangle(game.gaper[i].x * FATORX + MARGIN_LEFT, game.gaper[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, ORANGE);
-    }
-    for (i = 0; i < game.n_pooter; i++) {
-        if(game.pooter[i].active)
-            DrawRectangle(game.pooter[i].x * FATORX + MARGIN_LEFT, game.pooter[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, BROWN);
+
+    
+    origin = (Vector2){LADO_QUADRADOX/2-MARGIN_LEFT, LADO_QUADRADOY-MARGIN_TOP}; //origin e pra centralizar melhor a sprite na posicao do jogador (usei para compensar a multiplicacao por 2 que eu fiz no dest pra sprite ficar maior)
+    
+    //Deenha as traps
+    for (i = 0; i < game.n_traps; i++) {
+        game.trap[i].spritex += 31;
+        if(game.trap[i].spritex >= 31*50) game.trap[i].spritex = 0;
+
+        source = (Rectangle){game.trap[i].spritex, 0, 31, 32}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+        dest = (Rectangle){game.trap[i].x*FATORX, game.trap[i].y*FATORY+10, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+        //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+        DrawTexturePro(game.trap[0].texture, source, dest, origin, 0.0, RAYWHITE);
     }
 
     //Desenha as bombas
     for (i = 0; i < game.n_bombas; i++) {
-        if (game.bomb[i].active)
-            DrawRectangle(game.bomb[i].x * FATORX + MARGIN_LEFT, game.bomb[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, BLACK);
+        if (game.bomb[i].active){
+            source = (Rectangle){game.bomb[i].spritex, 0, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+            dest = (Rectangle){game.bomb[i].x*FATORX+10, game.bomb[i].y*FATORY+20, LADO_QUADRADOX+5, LADO_QUADRADOY+5};
+            //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+
+            if(!game.bomb[i].colectable){
+                game.bomb[i].texture = LoadTexture("../sprites/bomb_active.png");
+                game.bomb[i].spritex += 32;
+                if(game.bomb[i].spritex >= 32*(60*3)) game.bomb[i].spritex = 0;
+                game.bomb[i].color = (Color){255, 200, 150, 255};
+                
+            }
+            DrawTexturePro(game.bomb[i].texture, source, dest, origin, 0.0, game.bomb[i].color);
+        }
     }
 
-    //Deenha as traps
-    for (i = 0; i < game.n_traps; i++) {
-        DrawRectangle(game.trap[i].x * FATORX + MARGIN_LEFT, game.trap[i].y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, RED);
+    
+
+    //Explosao da bomba
+    for (i = 0; i < game.n_explosion; i++) {
+        
+        game.explosion[i].spritex += 32;
+        if(game.explosion[i].spritex >= 32*(60*2)) game.explosion[i].spritex = 0;
+
+        source = (Rectangle){game.explosion[i].spritex, 0, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+        dest = (Rectangle){game.explosion[i].x*FATORX+10, game.explosion[i].y*FATORY+20, LADO_QUADRADOX, LADO_QUADRADOY};
+        //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+        DrawTexturePro(game.explosion[0].texture, source, dest, origin, 0.0, ORANGE);
     }
+
+
+
 
     //DESENHA A HUB
-        DrawText(TextFormat("TIME: %.02f", (float)game.frameCount/60), 10, (MAP_HEIGHT*FATORY)+50, 20, BLACK);
-        DrawText(TextFormat("VIDA: %d", game.player.health), 10,(MAP_HEIGHT*FATORY)+70, 20, BLACK);
-        DrawText(TextFormat("BOMBAS: %d", game.player.n_bombs), 10,(MAP_HEIGHT*FATORY)+90, 20, BLACK);
-        DrawText(TextFormat("PONTUACAO: %d", game.player.pontuacao), 10,(MAP_HEIGHT*FATORY)+110, 20, BLACK);
+        DrawText(TextFormat("TIME: %.02f", (float)game.frameCount/60), 10, (MAP_HEIGHT*FATORY)+50, 20, WHITE);
+        DrawText(TextFormat("VIDA: %d", game.player.health), 10,(MAP_HEIGHT*FATORY)+70, 20, WHITE);
+        DrawText(TextFormat("BOMBAS: %d", game.player.n_bombs), 10,(MAP_HEIGHT*FATORY)+90, 20, WHITE);
+        DrawText(TextFormat("PONTUACAO: %d", game.player.pontuacao), 10,(MAP_HEIGHT*FATORY)+110, 20, WHITE);
 
     //DESENHA OS TIROS
         for(i=0; i <= game.n_tiro; i++){
-            if(game.tiro[i].ent.active ==  true){
-                DrawRectangle(game.tiro[i].ent.x * FATORX + MARGIN_LEFT, game.tiro[i].ent.y * FATORY + MARGIN_TOP, LADOX, LADOY, YELLOW);
+            if(game.tiro[i].active ==  true){
+                DrawRectangle(game.tiro[i].x * FATORX + MARGIN_LEFT, game.tiro[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, YELLOW);
             }
         }
 
     // spritesheet = LoadTexture("../sprites/spritesheet.png");
     // DrawTexture(spritesheet, game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, RAYWHITE);
 
+
+
+    int orientation;
+    if(game.portal.x > MAP_WIDTH/2)
+        orientation = s_sizex;
+    else
+        orientation = -s_sizex;
+
+    source = (Rectangle){game.portal.spritex, 0, orientation, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+    dest = (Rectangle){game.portal.x*FATORX, game.portal.y*FATORY+12, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+    //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+
+    //Desenha a Porta
+    if(game.portal.active){
+        DrawTexturePro(door, source, dest, origin, 0.0, (Color){100,100,255,255});
+    }
     //Desenha o portal
-    DrawRectangle(game.portal.x * FATORX + MARGIN_LEFT, game.portal.y * FATORY + MARGIN_TOP, LADO_QUADRADOX, LADO_QUADRADOY, GRAY); // Portal
+    DrawTexturePro(game.portal.texture, source, dest, origin, 0.0, RAYWHITE);
+
+    
+
+
+
+
+    //Desenha o player e inimigos
+
+    if(game.player.health <= 0){
+        game.player.texture = LoadTexture("../sprites/isaac_dead.png");
+        game.player.spritex = 0;
+        game.player.spritey = 0;
+        if (timer.death >= DEATH_DELAY - 0.1){
+            game.player.texture = LoadTexture("../sprites/isaac.png");
+        }
+    }
+    
+    if(game.player.dx == 0 && game.player.dy == 0)
+        game.player.spritex = 0;
+    if(game.player.dx == 1)
+        game.player.spritey = s_right;
+    else if(game.player.dx == -1)
+        game.player.spritey = s_left;
+    else if(game.player.dy == 1)
+        game.player.spritey = s_back;
+    else if(game.player.dy == -1)
+        game.player.spritey = s_front;
+    game.player.spritex += 32; //Realiza a animacao mudando a posicao da sprite
+    if(game.player.spritex > 32*10)
+        game.player.spritex = 0;
+    
+    
+    //DrawRectangle(game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, 20, 20, GREEN);
+    source = (Rectangle){game.player.spritex, game.player.spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+    dest = (Rectangle){game.player.x*FATORX, game.player.y*FATORY, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+    //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+    DrawTexturePro(game.player.texture, source, dest, origin, 0.0, game.player.color);
+
+    //Desenha os inimigos
+    for (i = 0; i < game.n_gaper; i++) {
+        if(game.gaper[i].active){
+            if(game.gaper[i].dx == 0 && game.gaper[i].dy == 0)
+                game.gaper[i].spritex = 0;
+            else{
+                game.gaper[i].spritex += 32;
+                if(game.gaper[i].spritex > 32*8){
+                    game.gaper[i].spritex = 0;
+                }
+                game.gaper[i].spritey = 0;
+            }
+                
+            
+            source = (Rectangle){game.gaper[i].spritex, game.gaper[i].spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+            dest = (Rectangle){game.gaper[i].x*FATORX, game.gaper[i].y*FATORY, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+            //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+            DrawTexturePro(game.gaper[0].texture, source, dest, origin, 0.0, RAYWHITE);
+        }
+    }
+    for (i = 0; i < game.n_pooter; i++) {
+        if(game.pooter[i].active){
+            source = (Rectangle){game.pooter[i].spritex, game.pooter[i].spritey, s_sizex, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+            dest = (Rectangle){game.pooter[i].x*FATORX, game.pooter[i].y*FATORY, LADO_QUADRADOX*2, LADO_QUADRADOY*2};
+            //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+            DrawTexturePro(game.pooter[0].texture, source, dest, origin, 0.0, RAYWHITE);
+        }
+    }
+    if(game.boss.active){
+            source = (Rectangle){game.boss.spritex, game.boss.spritey, s_sizex*4, s_sizey*4}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+            dest = (Rectangle){game.boss.x*FATORX, game.boss.y*FATORY, LADO_QUADRADOX*2*4, LADO_QUADRADOY*2*4};
+            //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+            DrawTexturePro(game.boss.texture, source, dest, origin, 0.0, RAYWHITE);
+        }
+    
 
 
     EndDrawing();
@@ -398,9 +716,14 @@ void DrawGame(){ //Funcao que desenha o jogo
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando e feito o load do save e quando avanca de fase)
+void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o load do save e quando avanca de fase)
 {
-    *state = '\0';
+    if(game.state == 'n'){
+        game.player.health = 100;
+        game.player.lives = 3;
+        game.player.n_bombs = 0;
+    }
+    game.state = '\0';
     int enemy_steps = 0;
 
     int i, j;
@@ -469,6 +792,22 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         game.player.active = true;
         puts("Setted player spawn");
 
+        if(game.current_map == 10){
+            x = 0;
+            y = 0;
+            while (game.map[y][x] == 0) {
+                x = 3 + (rand() % MAP_WIDTH - 3);              
+                y = 3 + rand() % ((MAP_HEIGHT - 3) / 2); // ENTIDADE spawna em qualquer posicao livre do mapa
+            }
+            game.boss.x = x;
+            game.boss.y = y;
+            puts("Setted player spawn");
+        }
+
+
+
+
+
         // Portal
 
         game.portal.x = MAP_WIDTH - 2;
@@ -491,6 +830,14 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         printf("Traps spawns sucessfully setted: %d traps in current map\n", game.n_traps);
     }
     if (!game.isLoaded) {
+        game.boss.active = true;
+        if(game.current_map == 10){
+            game.boss.health = 1000;
+        } else{
+            game.boss.health = -1;
+        }
+
+
         for (i = 0; i < game.n_gaper; i++) {
             redefineDeslocamento(&game.gaper[i], &enemy_steps);
         }
@@ -498,6 +845,10 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
 
         for (i = 0; i < game.n_bombas; i++) {
             game.bomb[i].active = true;
+            game.bomb[i].colectable = true;
+            game.bomb[i].alive_time = 0;
+            game.bomb[i].texture = LoadTexture("../sprites/bomb_idle.png");
+            game.bomb[i].color = RAYWHITE;
         }
         for (i = 0; i < game.n_gaper; i++) {
             game.gaper[i].active = true;
@@ -505,28 +856,46 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         for (i = 0; i < game.n_bombas; i++) {
             game.pooter[i].active = true;
         }
-
+        game.n_explosion = 0;
         game.portal.active = false;
-        game.player.health = 100;
-        game.player.lives = 3;
-        game.player.n_bombs = 0;
+        timer.death = 0;
+        timer.moviment = 0;
+        timer.invecible = 0;
+        
+        game.player.texture = LoadTexture("../sprites/isaac.png");
     }
     game.isLoaded = false;
 
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------
-    while (!WindowShouldClose() && *state != 'q' && *state != 'n' && *state != 'p') {
+    while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
-        //                  JOGADOR:
+
+
+        timer.moviment += GetFrameTime();
+
+        if(game.boss.health <= 0){
+            game.boss.active = false;
+        }
+        
+        
+        if(IsKeyPressed(KEY_Y)){ //Especial do personagem
+            if(game.player.active)
+                game.player.active = false;
+            else
+                game.player.active = true;
+        }
+        if(!game.player.active){
+            game.player.color = (Color){255, 255, 255, 100};
+        }
         // Verifica se o usuario apertou ESC
         if (IsKeyPressed(KEY_ESCAPE)) {
             puts("Game paused");
-            *state = 'e';
-            menu(state, 1);
-            if (*state == 'g') {
+            game.state = 'e';
+            menu(1);
+            if (game.state == 'g') {
                 return; // Remove um bug de o jogador iniciar um novo jogo pelo pause e morrer na primeira fase e nao exibir o game over
             }
-            //  Time(0.2);
         }
 
         // Define as direcoes dx e dy do jogador:
@@ -539,56 +908,80 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
         if (IsKeyDown(KEY_S))
             game.player.dy = -1;
 
-        checkCollision();
+
+
+        if (game.player.health <= 0) { //Muda as animacoes e ativa o modo invencivel quando o player morre
+            game.player.dx = 0;
+            game.player.dy = 0;
+            game.player.active = false;
+            timer.death += GetFrameTime();
+            game.player.color = (Color){255, 255, 255, 100};
+            if(timer.death > DEATH_DELAY){
+                game.player.lives--;
+                game.player.health = 100;
+                timer.death = 0;
+                timer.moviment = 0;
+            }
+        }
+        if(!game.player.active && !timer.death){
+            timer.invecible += GetFrameTime();
+            if(timer.invecible > 3){
+                game.player.active = true;
+                timer.invecible = 0;
+                game.player.color = RAYWHITE;
+            }
+        }
+        if(game.player.active)
+            checkCollision(&game.player);
 
         //-----------------------------------------------------------------------------
         //-----------------------------------------------------------------------------
         //            TIROS
 
         if(IsKeyPressed(KEY_RIGHT)){
-            game.tiro[game.n_tiro].ent.x = game.player.x;
-            game.tiro[game.n_tiro].ent.y = game.player.y;
-            game.tiro[game.n_tiro].ent.dx = 1;
-            game.tiro[game.n_tiro].ent.dy = 0;
+            game.tiro[game.n_tiro].x = game.player.x;
+            game.tiro[game.n_tiro].y = game.player.y;
+            game.tiro[game.n_tiro].dx = 1;
+            game.tiro[game.n_tiro].dy = 0;
 
-            game.tiro[game.n_tiro].ent.x += VELOCIDADE;
-            game.tiro[game.n_tiro].ent.active = true;
+            game.tiro[game.n_tiro].x += VELOCIDADE;
+            game.tiro[game.n_tiro].active = true;
             game.n_tiro++;
         }
         if(IsKeyPressed(KEY_LEFT)){
-            game.tiro[game.n_tiro].ent.x = game.player.x;
-            game.tiro[game.n_tiro].ent.y = game.player.y;
-            game.tiro[game.n_tiro].ent.dx = -1;
-            game.tiro[game.n_tiro].ent.dy = 0;
-            game.tiro[game.n_tiro].ent.active = true;
+            game.tiro[game.n_tiro].x = game.player.x;
+            game.tiro[game.n_tiro].y = game.player.y;
+            game.tiro[game.n_tiro].dx = -1;
+            game.tiro[game.n_tiro].dy = 0;
+            game.tiro[game.n_tiro].active = true;
             game.n_tiro++;
         }
         if(IsKeyPressed(KEY_UP)){
-            game.tiro[game.n_tiro].ent.x = game.player.x;
-            game.tiro[game.n_tiro].ent.y = game.player.y;
-            game.tiro[game.n_tiro].ent.dx = 0;
-            game.tiro[game.n_tiro].ent.dy = 1;
-            game.tiro[game.n_tiro].ent.active = true;
+            game.tiro[game.n_tiro].x = game.player.x;
+            game.tiro[game.n_tiro].y = game.player.y;
+            game.tiro[game.n_tiro].dx = 0;
+            game.tiro[game.n_tiro].dy = 1;
+            game.tiro[game.n_tiro].active = true;
             game.n_tiro++;
         }
         if(IsKeyPressed(KEY_DOWN)){
-            game.tiro[game.n_tiro].ent.x = game.player.x;
-            game.tiro[game.n_tiro].ent.y = game.player.y;
-            game.tiro[game.n_tiro].ent.dx = 0;
-            game.tiro[game.n_tiro].ent.dy = -1;
-            game.tiro[game.n_tiro].ent.active = true;
+            game.tiro[game.n_tiro].x = game.player.x;
+            game.tiro[game.n_tiro].y = game.player.y;
+            game.tiro[game.n_tiro].dx = 0;
+            game.tiro[game.n_tiro].dy = -1;
+            game.tiro[game.n_tiro].active = true;
             game.n_tiro++;
         }
 
         //MOVIMENTAR OS TIROS
         for(i = 0; i <= game.n_tiro; i++){
-            if(game.tiro[i].ent.x != NULL && game.tiro[i].ent.y != NULL){
-                if( game.tiro[i].ent.collided != true){
+            if(game.tiro[i].x != NULL && game.tiro[i].y != NULL){
+                if( game.tiro[i].collided != true){
                     movimentar(&game.tiro[i]);
                 }else{
-                    game.tiro[i].ent.active = false;
-                    game.tiro[i].ent.x = NULL;
-                    game.tiro[i].ent.y = NULL;
+                    game.tiro[i].active = false;
+                    game.tiro[i].x = NULL;
+                    game.tiro[i].y = NULL;
                 }
             }
         }
@@ -602,14 +995,14 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
             for (i = 0; i < game.n_gaper; i++)
             {
                 for(j = 0; j <= game.n_tiro; j++ ){
-                    if ((game.tiro[j].ent.x + game.tiro[j].ent.dx == game.gaper[i].x && game.tiro[j].ent.y == game.gaper[i].y) ||
-                        (game.tiro[j].ent.y - game.tiro[j].ent.dy == game.gaper[i].y && game.tiro[j].ent.x == game.gaper[i].x))
+                    if ((game.tiro[j].x + game.tiro[j].dx == game.gaper[i].x && game.tiro[j].y == game.gaper[i].y) ||
+                        (game.tiro[j].y - game.tiro[j].dy == game.gaper[i].y && game.tiro[j].x == game.gaper[i].x))
                     {
-                        game.tiro[j].ent.collided = true;
-                        game.tiro[j].ent.active = false;
+                        game.tiro[j].collided = true;
+                        game.tiro[j].active = false;
                     }
-                    if ((game.gaper[i].x + game.gaper[i].dx == game.tiro[j].ent.x && game.gaper[i].y == game.tiro[j].ent.y) ||
-                        (game.gaper[i].y - game.gaper[i].dy == game.tiro[j].ent.y && game.gaper[i].x == game.tiro[j].ent.x))
+                    if ((game.gaper[i].x + game.gaper[i].dx == game.tiro[j].x && game.gaper[i].y == game.tiro[j].y) ||
+                        (game.gaper[i].y - game.gaper[i].dy == game.tiro[j].y && game.gaper[i].x == game.tiro[j].x))
                     {
                         game.gaper[i].collided = true;
                         game.gaper[i].health--;
@@ -629,14 +1022,14 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
             for (i = 0; i < game.n_pooter; i++)
             {
                 for(j = 0; j <= game.n_tiro; j++ ){
-                    if ((game.tiro[j].ent.x + game.tiro[j].ent.dx == game.pooter[i].x && game.tiro[j].ent.y == game.pooter[i].y) ||
-                        (game.tiro[j].ent.y - game.tiro[j].ent.dy == game.pooter[i].y && game.tiro[j].ent.x == game.pooter[i].x))
+                    if ((game.tiro[j].x + game.tiro[j].dx == game.pooter[i].x && game.tiro[j].y == game.pooter[i].y) ||
+                        (game.tiro[j].y - game.tiro[j].dy == game.pooter[i].y && game.tiro[j].x == game.pooter[i].x))
                     {
-                        game.tiro[j].ent.collided = true;
-                        game.tiro[j].ent.active = false;
+                        game.tiro[j].collided = true;
+                        game.tiro[j].active = false;
                     }
-                    if ((game.pooter[i].x + game.pooter[i].dx == game.tiro[j].ent.x && game.pooter[i].y == game.tiro[j].ent.y) ||
-                        (game.pooter[i].y - game.pooter[i].dy == game.tiro[j].ent.y && game.pooter[i].x == game.tiro[j].ent.x))
+                    if ((game.pooter[i].x + game.pooter[i].dx == game.tiro[j].x && game.pooter[i].y == game.tiro[j].y) ||
+                        (game.pooter[i].y - game.pooter[i].dy == game.tiro[j].y && game.pooter[i].x == game.tiro[j].x))
                     {
                         game.pooter[i].collided = true;
                         game.pooter[i].health--;
@@ -651,52 +1044,56 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
             }
 
         //PORTAL ATIVO OU NAO
+        int count_enemies = 0;
         for(i = 0; i < game.n_gaper; i++){
-            if(game.gaper[i].active){
-                game.portal.active = false;
-            }else{
-                game.portal.active = true;
-            }
+            if(game.gaper[i].active)
+                count_enemies++;
         }
-
+        for(i = 0; i < game.n_pooter; i++){
+            if(game.pooter[i].active)
+                count_enemies++;
+        }
+        if(game.boss.active)
+            count_enemies++;
+        
+        if(!count_enemies)
+            game.portal.active = true;
+        else game.portal.active = false;
+       
 
 	    //ATUALIZA O TEMPO
         game.frameCount++;
 
-        // Portal
-        if (game.player.x == game.portal.x && game.player.y == game.portal.y && game.portal.active)
-            *state = 'p';
 
         // Movimentacao do jogador
         if (!game.player.collided)
             movimentar(&game.player);
         game.player.collided = false;
-        game.player.dx = 0;
-        game.player.dy = 0;
 
         // Movimentacao dos inimigos
 
         for (i = 0; i < game.n_gaper; i++) {
             if(game.gaper[i].active){
-                if (enemy_steps == 0)
-                    redefineDeslocamento(&game.gaper[i], &enemy_steps);
-                if (game.gaper[i].collided) {
-                    redefineDeslocamento(&game.gaper[i], &enemy_steps);
-                }
-                if (rayCast(game.gaper[i], game.player) != 0) {
-                    // Chama a funcao que verifica se tem paredes entre o game.gaper e o jogador
+                if (rayCast(game.gaper[i], game.player)) {
+                    // Chama a funcao que verifica se tem paredes entre o gaper e o jogador
                     game.gaper[i].canChase = false;
                 }
-                if (game.gaper[i].canChase && !game.gaper[i].collided) {
+                if (game.gaper[i].canChase && game.player.active) {
                     persegue(game.player, &game.gaper[i]);
                 } else {
+                    if (enemy_steps == 0)
+                        redefineDeslocamento(&game.gaper[i], &enemy_steps);
                     if (enemy_steps > 0) {
                         movimentar(&game.gaper[i]);
                         enemy_steps--;
                     }
+                    if (game.gaper[i].collided) {
+                        redefineDeslocamento(&game.gaper[i], &enemy_steps);
+                    }
                 }
+                checkCollision(&game.gaper[i]);
                 game.gaper[i].canChase = true;
-                game.gaper[i].collided = false;
+            
             }
         }
 
@@ -719,55 +1116,79 @@ void novo_jogo(char *state) //Funcao que carrega um novo jogo (inclusive quando 
                         enemy_steps--;
                     }
                 }
+                checkCollision(&game.pooter[i]);
                 game.pooter[i].canChase = true;
-                game.pooter[i].collided = false;
             }
 
         }
+        
 
+        if((IsKeyPressed(KEY_E) && !timer.death)){
+            if(game.player.n_bombs > 0){
+                game.n_bombas++;
+                game.bomb[game.n_bombas-1].x = game.player.x;
+                game.bomb[game.n_bombas-1].y = game.player.y;
+                
+                game.bomb[game.n_bombas-1].active = true;
+                game.bomb[game.n_bombas-1].colectable = false;
+                game.player.n_bombs--;
+            }
+                
+                
 
-        if (game.player.health < 1) {
-            game.player.lives--;
-            game.player.health = 100;
         }
 
-        printf("\nplayer health: %d\n", game.player.health);
-        printf("player lives: %d\n", game.player.lives);
+        checkBombs();
+        
+        /* printf("\nplayer health: %d\n", game.player.health);
+        printf("player lives: %d\n", game.player.lives);*/
         printf("player bombs: %d\n", game.player.n_bombs);
-
-        if (IsKeyDown(KEY_SPACE)) {
-            *state = 'p';
+ 
+        if (IsKeyPressed(KEY_SPACE)) {
+            game.state = 'p';
         }
+
+        // Portal
+        if ((game.player.x == game.portal.x && game.player.y == game.portal.y && game.portal.active) && game.player.active)
+            game.state = 'p';
 
         // Game Over:
         if (IsKeyPressed(KEY_MINUS))
-            game.player.lives--;
+            game.player.health = 0;
         if (!game.player.lives) {
             char text[30];
-            *state = 'g';
+            game.state = 'g';
             strcpy(text, "Game Over!");
             DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE + 10) / 2, ALTURA / 2 - FONT_SIZE + 10, FONT_SIZE, RED);
             return;
         }
+        if(timer.moviment > 0.1)
+            timer.moviment = 0;
 
+
+        
         //---------------------------------------------------------------------------
         //---------------------------------------------------------------------------
         //                          DESENHAR JOGO:
         DrawGame();
+
+        //Reseta as direcoes do jogador pra ele nao ficar deslizando
+        game.player.dx = 0;
+        game.player.dy = 0;
     }
 
     //------------------------------------------------------------------------------------------------
     //------------------------------------------------------------------------------------------------
-    if (*state == 'p') {
+    if (game.state == 'p') {
         puts("Changing current map...\n");
         if (game.current_map < MAX_MAPS)
             game.current_map++;
-        novo_jogo(state);
+        novo_jogo();
     }
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-int carregar_jogo(char *state, char filename[]) //Faz o load do save
+int carregar_jogo(char filename[]) //Faz o load do save
 {
     char text[50];
     int carregou = 0;
@@ -784,7 +1205,7 @@ int carregar_jogo(char *state, char filename[]) //Faz o load do save
         fclose(savestate);
     }
 
-    while (*state == 'c') {
+    while (game.state == 'c') {
         BeginDrawing();
         ClearBackground(RAYWHITE);
         strcpy(text, "Jogo Carregado com sucesso!");
@@ -794,14 +1215,14 @@ int carregar_jogo(char *state, char filename[]) //Faz o load do save
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 2 - FONT_SIZE - 10 + 70, FONT_SIZE - 10, BLACK);
 
         if (IsKeyPressed(KEY_ESCAPE))
-            *state = '\0';
+            game.state = '\0';
         EndDrawing();
     }
     return carregou;
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-int salvar_jogo(char *state, char filename[]) //Salva a struct game em um arquivo binario
+int salvar_jogo(char filename[]) //Salva a struct game em um arquivo binario
 {
     char text[50];
     FILE *savestate;
@@ -818,7 +1239,7 @@ int salvar_jogo(char *state, char filename[]) //Salva a struct game em um arquiv
             fclose(savestate);
         }
     }
-    while (*state == 's') {
+    while (game.state == 's') {
         BeginDrawing();
         ClearBackground(RAYWHITE);
         if (game.modo_jogo) {
@@ -832,19 +1253,19 @@ int salvar_jogo(char *state, char filename[]) //Salva a struct game em um arquiv
         strcpy(text, "Aperte ESC para continuar");
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE - 10) / 2, ALTURA / 2 - FONT_SIZE - 10 + 70, FONT_SIZE - 10, BLACK);
         if (IsKeyPressed(KEY_ESCAPE))
-            *state = '\0';
+            game.state = '\0';
         EndDrawing();
     }
-    // menu(state, 1);
+    // menu( 1);
     return salvou;
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void sair_jogo(char *state) //Encerra o jogo apos perguntar se o usuario gostaria de salvar o jogo
+void sair_jogo() //Encerra o jogo apos perguntar se o usuario gostaria de salvar o jogo
 {
     char text[50];
     char save_path[50] = "../saves/save.bin";
-    while (*state != 'q') {
+    while (game.state != 'q') {
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
@@ -852,42 +1273,42 @@ void sair_jogo(char *state) //Encerra o jogo apos perguntar se o usuario gostari
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 2 - FONT_SIZE, FONT_SIZE, BLACK);
 
         if (IsKeyPressed(KEY_S)) {
-            salvar_jogo(state, save_path);
-            *state = 'q';
+            salvar_jogo( save_path);
+            game.state = 'q';
         } else if (IsKeyPressed(KEY_N)) {
-            *state = 'q';
+            game.state = 'q';
         }
         EndDrawing();
     }
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void voltar_jogo(char *state) //Simplesmente retorna ao jogo
+void voltar_jogo() //Simplesmente retorna ao jogo
 {
-    *state = '\0';
+    game.state = '\0';
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void menu(char *state, int were_played) //Menu principal do jogo
+void menu(int were_played) //Menu principal do jogo
 {
     // Menu do jogo
     char text[100] = "";
     char save_path[50] = "../saves/save.bin";
 
-    while (*state == '\0' || *state == 'e' || *state == 'g') {
-        if (*state == 'g') {
+    while (game.state == '\0' || game.state == 'e' || game.state == 'g') {
+        if (game.state == 'g') {
             WaitTime(2);
-            *state = '\0';
+            game.state = '\0';
         }
 
         if (IsKeyPressed(KEY_N)) {
-            *state = 'a';
+            game.state = 'a';
         }
         if (IsKeyPressed(KEY_C)) {
-            *state = 'c';
-            if (carregar_jogo(state, save_path)) {
+            game.state = 'c';
+            if (carregar_jogo(save_path)) {
                 game.isLoaded = true;
-                novo_jogo(state);
+                novo_jogo();
             }
 
             else {
@@ -897,18 +1318,18 @@ void menu(char *state, int were_played) //Menu principal do jogo
             }
         }
         if (IsKeyPressed(KEY_S) && were_played) {
-            *state = 's';
-            if (salvar_jogo(state, save_path))
+            game.state = 's';
+            if (salvar_jogo( save_path))
                 puts("Game saved sucessfully");
         }
         if (IsKeyPressed(KEY_Q)) {
             puts("Exiting game...");
-            *state = '0'; // atribui a '0' para poder sair do loop do menu.
-            sair_jogo(state);
+            game.state = '0'; // atribui a '0' para poder sair do loop do menu.
+            sair_jogo();
         }
         if (IsKeyPressed(KEY_V) && were_played) {
             puts("Game resumed");
-            *state = 'v';
+            game.state = 'v';
         }
         BeginDrawing();
         ClearBackground(RAYWHITE);
@@ -934,7 +1355,7 @@ void menu(char *state, int were_played) //Menu principal do jogo
         }
         EndDrawing();
     }
-    while (*state == 'a') {
+    while (game.state == 'a') {
 
         strcpy(text, "Selecione o Modo de jogo:");
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE) / 2, ALTURA / 4 - FONT_SIZE, FONT_SIZE, BLACK);
@@ -946,15 +1367,15 @@ void menu(char *state, int were_played) //Menu principal do jogo
         if (IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_KP_1)) {
             game.modo_jogo = 0;
             game.current_map = 1;
-            *state = 'n';
-            novo_jogo(state);
+            game.state = 'n';
+            novo_jogo();
             were_played = 1;
         }
         if (IsKeyPressed(KEY_TWO) || IsKeyPressed(KEY_KP_2)) {
             game.modo_jogo = 1;
             game.current_map = 1;
-            *state = 'n';
-            novo_jogo(state);
+            game.state = 'n';
+            novo_jogo();
         }
 
         BeginDrawing();
@@ -967,15 +1388,31 @@ void menu(char *state, int were_played) //Menu principal do jogo
 int main(void) //Funcao principal que apenas chama o menu
 {
     //
-    char state = '\0'; // Estados do jogo
+    game.state = '\0'; // Estados do jogo
     // char save_path[50] = "../saves/save.bin";
 
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
-    SetTargetFPS(24);
+    SetTargetFPS(60);
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
 
-    while (state == '\0' || state == 'e' || state == 'g' || state == 'p')
-        menu(&state, 0);
+    background = LoadTexture("../sprites/basement1.png");
+    blocks = LoadTexture("../sprites/block1.png");
+    door = LoadTexture("../sprites/door1.png");
+
+    game.player.texture = LoadTexture("../sprites/isaac.png");
+    game.player.color = RAYWHITE;
+    game.boss.texture = LoadTexture("../sprites/monstro.png");
+    game.gaper[0].texture = LoadTexture("../sprites/gaper_front.png");
+    game.pooter[0].texture = LoadTexture("../sprites/pooter_front.png");
+    game.trap[0].texture = LoadTexture("../sprites/trap.png");
+    game.explosion[0].texture = LoadTexture("../sprites/explosion.png");
+    
+    game.portal.texture = LoadTexture("../sprites/portal1.png");
+    
+    
+
+    while (game.state == '\0' || game.state == 'e' || game.state == 'g' || game.state == 'p')
+        menu(0);
 
     CloseWindow(); // Fecha a janela e o contexto OpenGL
     return 0;
