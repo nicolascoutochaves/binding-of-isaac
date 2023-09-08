@@ -9,3 +9,6 @@ makefile
 
 #ignore binaries files (like saves)
 *.bin
+
+#ignore gimp project
+*.xcf
