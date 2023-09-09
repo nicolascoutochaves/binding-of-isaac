@@ -43,26 +43,40 @@
 
 //          Define o n maximo de mapas do modo normal:
 #define MAX_MAPS 10 // Atualizar sempre que acrescentar ou remover um mapa, para que carregue adequadamente ou nao crashe na funcao de manipulacao de arquivo
-
+typedef struct TIRO{
+    Texture2D texture;
+    Color color;
+    int x, y;
+    int dx, dy;
+    float delay;
+    bool active; //Retorna se esta ativo ou nao
+    bool collided; //Retorna se entidade esta em colisao
+    bool isPlayer;
+}TIRO;
 typedef struct ENTIDADE {
-    // Entidades means enemys or players
+    // Entidade means enemys or players
+    TIRO tiro[MAX_TIROS];
+    Texture2D texture;
+    Color color;
     int x, y;   // posicao x e y
     int dx, dy; // direcoes
     int health; // Saude
     int lives;
     int pontuacao;
     int n_bombs;
+    int n_tiros;
     int spritex; //posicao x e y das sprites
     int spritey;
     bool active; //Retorna se esta vivo ou morto
     bool collided; //Retorna se entidade esta em colisao
     bool canChase; //Retorna se entidade pode perseguir um jogador
-    Texture2D texture;
-    Color color;
+    bool isPlayer;
 } ENTIDADE; // Struct usada para criar novas "entidades" como jogadores e inimigos.
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
 typedef struct ITEM {
+    Texture2D texture;
+    Color color;
     int x;
     int y;
     int spritex;
@@ -70,21 +84,14 @@ typedef struct ITEM {
     float alive_time;
     bool active;
     bool colectable;
-    Texture2D texture;
-    Color color;
 } ITEM;
 
 typedef struct TIMER{
     float death;
     float moviment;
     float invecible;
+    float enemy_shot;
 } TIMER;
-
-typedef struct TIRO
-{
-    ENTIDADE ent;
-}TIRO;
-
 
 typedef struct GAME { // Objetos do jogo ---- Deixei tudo nessa struct para facilitar a manipulacao dos saves
     ITEM portal;
@@ -116,7 +123,6 @@ TIMER timer;
 Texture2D background;
 Texture2D blocks;
 Texture2D door;
-
 //Acessa outras linhas do arquivo de sprite para realizar as animacoes:
 int s_sizex = 32, s_sizey = 32; //tamanhos das sprites
 int s_front = 0; //animacao frontal
@@ -317,25 +323,28 @@ int rayCast(ENTIDADE a, ENTIDADE b) //Funcao que esstabelece um vetor posicao re
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos e itens (exceto o portal)
-    int i;
+    int i, j;
 
     // Colisoes com os inimigos
     //Gaper:
         for (i = 0; i < game.n_gaper; i++) {
-            if ((game.player.x + game.player.dx == game.gaper[i].x && game.player.y == game.gaper[i].y) ||
-                (game.player.y - game.player.dy == game.gaper[i].y && game.player.x == game.gaper[i].x)) {
-                game.player.health -= 10;
-                game.player.collided = true;
+            if(game.gaper[i].active){
+                if ((game.player.x + game.player.dx == game.gaper[i].x && game.player.y == game.gaper[i].y) ||
+                    (game.player.y - game.player.dy == game.gaper[i].y && game.player.x == game.gaper[i].x)) {
+                    game.player.health -= 60;
+                    game.player.active = false; //Player fica invulneravel apos o primeiro dano
+                }
             }
         }
     //Pooter:
         for (i = 0; i < game.n_pooter; i++) {
-            if ((game.player.x + game.player.dx == game.pooter[i].x && game.player.y == game.pooter[i].y) ||
-                (game.player.y - game.player.dy == game.pooter[i].y && game.player.x == game.pooter[i].x)) {
-                game.player.health -= 10;
-                game.player.collided = true;
-            }
-            
+            if(game.pooter[i].active){
+                if ((game.player.x + game.player.dx == game.pooter[i].x && game.player.y == game.pooter[i].y) ||
+                    (game.player.y - game.player.dy == game.pooter[i].y && game.player.x == game.pooter[i].x)) {
+                    game.player.health -= 60;
+                    game.player.active = false;//Player fica invulneravel apos o primeiro dano
+                }
+            }            
         }
 
 
@@ -357,18 +366,48 @@ void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos 
         }
         if(game.player.x == game.bomb[game.n_bombas-1].x && game.player.y == game.bomb[game.n_bombas-1].y)
             game.player.collided = false; //Corrige o bug do player botar a bomba e se prender dentro dela
+        
+
+
+
         // Traps
         for (i = 0; i < game.n_traps; i++) {
-            if (game.player.x == game.trap[i].x && game.player.y == game.trap[i].y) {
-                game.player.health -= 70;
+            if (ent->x == game.trap[i].x && ent->y == game.trap[i].y && ent->isPlayer) {
+                game.player.health -= 80;
             }
         }
 
-        for(i = 0; i < game.n_explosion; i++){
-        if(ent->x == game.explosion[i].x && ent->y == game.explosion[i].y && ent->active && game.explosion[i].active){
-            ent->health = 0;
-            ent->active = false;
+        //Tiros do Jogador
+        for (i = 0; i < MAX_TIROS; i++) {
+            if((ent->x == game.player.tiro[i].x && ent->y == game.player.tiro[i].y) && game.player.tiro[i].active){
+                if(!ent->isPlayer){//Player nao morre com proprio tiro
+                    ent->health -= 60;
+                    game.player.tiro[i].collided = true;
+                }
+            }
         }
+        //Tiros do inimigo
+        for (i = 0; i < game.n_pooter; i++) {
+            for(j = 0; j < MAX_TIROS; j++){
+                if((ent->x == game.pooter[i].tiro[j].x && ent->y == game.pooter[i].tiro[j].y) && game.pooter[i].tiro[j].active){
+                    if(ent->isPlayer){
+                        ent->health -= 60;
+                        game.player.active = false; //Player fica invulneravel apos o primeiro tiro
+                        game.pooter[i].tiro[j].collided = true;
+                    }
+                }
+            }
+            
+        }
+
+        for(i = 0; i < game.n_explosion; i++){
+        if(ent->x == game.explosion[i].x && ent->y == game.explosion[i].y) {
+            ent->health -= 100;
+        }
+    }
+
+    if(ent->health <= 0){
+        ent->active = false;
     }
 
 }
@@ -522,6 +561,7 @@ void checkBombs(){
 //------------------------------------------------------------------------------------------------
 void DrawGame(){ //Funcao que desenha o jogo
     int i, j;
+    int orientation;
     Rectangle source;
     Rectangle dest;
     Vector2 origin;
@@ -603,14 +643,36 @@ void DrawGame(){ //Funcao que desenha o jogo
 
     //DESENHA A HUB
         DrawText(TextFormat("TIME: %.02f", (float)game.frameCount/60), 10, (MAP_HEIGHT*FATORY)+50, 20, WHITE);
-        DrawText(TextFormat("VIDA: %d", game.player.health), 10,(MAP_HEIGHT*FATORY)+70, 20, WHITE);
+        DrawText(TextFormat("VIDAS: %d", game.player.lives), 10,(MAP_HEIGHT*FATORY)+70, 20, WHITE);
         DrawText(TextFormat("BOMBAS: %d", game.player.n_bombs), 10,(MAP_HEIGHT*FATORY)+90, 20, WHITE);
         DrawText(TextFormat("PONTUACAO: %d", game.player.pontuacao), 10,(MAP_HEIGHT*FATORY)+110, 20, WHITE);
 
-    //DESENHA OS TIROS
-        for(i=0; i <= game.n_tiro; i++){
-            if(game.tiro[i].active ==  true){
-                DrawRectangle(game.tiro[i].x * FATORX + MARGIN_LEFT, game.tiro[i].y * FATORY + MARGIN_TOP, LADOX, LADOY, YELLOW);
+    //DESENHA OS TIROS do Jogador
+        for(i = 0; i < MAX_TIROS; i++){
+            if(game.player.tiro[i].active){
+                if(game.player.tiro[i].dx == 1)
+                    orientation = s_sizex;
+                else
+                    orientation = -s_sizex;
+                
+                source = (Rectangle){0, 0, orientation, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+                dest = (Rectangle){game.player.tiro[i].x*FATORX, game.player.tiro[i].y*FATORY, LADO_QUADRADOX*3, LADO_QUADRADOY*3};
+                //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+                DrawTexturePro(game.player.tiro[i].texture, source, dest, origin, 0.0, game.player.tiro[i].color);
+            }
+
+            for(j = 0; j < game.n_pooter; j++){
+                if(game.pooter[j].tiro[i].active){
+                    if(game.pooter[j].tiro[i].dx == 1)
+                        orientation = s_sizex;
+                    else
+                        orientation = -s_sizex;
+                    
+                    source = (Rectangle){0, 0, orientation, s_sizey}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
+                    dest = (Rectangle){game.pooter[j].tiro[i].x*FATORX, game.pooter[j].tiro[i].y*FATORY, LADO_QUADRADOX*3, LADO_QUADRADOY*3};
+                    //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
+                    DrawTexturePro(game.pooter[j].tiro[i].texture, source, dest, origin, 0.0, game.pooter[j].tiro[i].color);
+                }
             }
         }
 
@@ -619,7 +681,7 @@ void DrawGame(){ //Funcao que desenha o jogo
 
 
 
-    int orientation;
+    
     if(game.portal.x > MAP_WIDTH/2)
         orientation = s_sizex;
     else
@@ -716,12 +778,60 @@ void DrawGame(){ //Funcao que desenha o jogo
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
+void atirar(ENTIDADE *ent){
+    int i;
+    if(ent->n_tiros == MAX_TIROS) ent->n_tiros = 0;
+    if(!ent->isPlayer){
+        
+        if (((game.player.x) > (ent->x))) {
+        ent->tiro[ent->n_tiros].dx = 1;
+        ent->tiro[ent->n_tiros].dy = 0;
+        }
+        else if (((game.player.x) < (ent->x))) {
+            ent->tiro[ent->n_tiros].dx = -1;
+            ent->tiro[ent->n_tiros].dy = 0;
+        }
+        else if (((game.player.y) < (ent->y))) {
+            ent->tiro[ent->n_tiros].dx = 0;
+            ent->tiro[ent->n_tiros].dy = 1;
+        }
+        else if (((game.player.y) > (ent->y))) {
+            ent->tiro[ent->n_tiros].dx = 0;
+            ent->tiro[ent->n_tiros].dy = -1;
+        }
+        
+    }
+    
+    for(i = 0; i < MAX_TIROS; i++){
+        if(ent->tiro[i].active){
+            if(timer.moviment > 0.1){
+                if (!(game.map[ent->tiro[i].y][ent->tiro[i].x + ent->tiro[i].dx])) {
+                ent->tiro[i].collided = true;
+                } else
+                    ent->tiro[i].x += VELOCIDADE * ent->tiro[i].dx;
+
+                if (!(game.map[ent->tiro[i].y - ent->tiro[i].dy][ent->tiro[i].x])) {
+                    ent->tiro[i].collided = true;
+                } else
+                    ent->tiro[i].y -= VELOCIDADE * ent->tiro[i].dy;
+            }
+        }
+        if(ent->tiro[i].collided){
+            ent->tiro[i].active = false;
+            ent->tiro[i].collided = false;
+        }
+
+    }
+    
+}
 void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o load do save e quando avanca de fase)
 {
     if(game.state == 'n'){
         game.player.health = 100;
         game.player.lives = 3;
         game.player.n_bombs = 0;
+        game.frameCount = 0;
+        game.player.pontuacao = 0;
     }
     game.state = '\0';
     int enemy_steps = 0;
@@ -736,9 +846,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         game.n_gaper = 0;
         game.n_pooter = 0;
         game.n_traps = 0;
-        game.n_tiro = 0;
-        game.frameCount = 0;
-        game.player.pontuacao = 0;
     }
 
     if (!game.modo_jogo) {
@@ -851,18 +958,35 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             game.bomb[i].color = RAYWHITE;
         }
         for (i = 0; i < game.n_gaper; i++) {
+            game.gaper[i].health = 50;
             game.gaper[i].active = true;
         }
         for (i = 0; i < game.n_bombas; i++) {
+            game.pooter[i].health = 50;
             game.pooter[i].active = true;
         }
+        for(i = 0; i < MAX_TIROS; i++){
+            game.player.tiro[i].active = false;
+            game.player.tiro[i].texture = LoadTexture("../sprites/tears.png");
+            game.player.tiro[i].color = RAYWHITE;
+            for(j = 0; j < game.n_pooter; j++){
+                game.pooter[j].tiro[i].active = false;
+                game.pooter[j].tiro[i].texture = LoadTexture("../sprites/tears.png");
+                game.pooter[j].tiro[i].color = RED;
+                game.pooter[j].tiro[i].delay = 0;
+                
+            }
+        }
+
         game.n_explosion = 0;
         game.portal.active = false;
         timer.death = 0;
         timer.moviment = 0;
-        timer.invecible = 0;
-        
+        timer.invecible = 0;        
+        game.player.n_tiros = 0;
         game.player.texture = LoadTexture("../sprites/isaac.png");
+        game.player.isPlayer = true;
+        game.player.active = false;
     }
     game.isLoaded = false;
 
@@ -870,7 +994,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
     //-----------------------------------------------------------------------------
     while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
-
 
         timer.moviment += GetFrameTime();
 
@@ -908,8 +1031,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         if (IsKeyDown(KEY_S))
             game.player.dy = -1;
 
-
-
         if (game.player.health <= 0) { //Muda as animacoes e ativa o modo invencivel quando o player morre
             game.player.dx = 0;
             game.player.dy = 0;
@@ -931,118 +1052,46 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                 game.player.color = RAYWHITE;
             }
         }
-        if(game.player.active)
+        if(game.player.active){
             checkCollision(&game.player);
-
-        //-----------------------------------------------------------------------------
-        //-----------------------------------------------------------------------------
-        //            TIROS
-
-        if(IsKeyPressed(KEY_RIGHT)){
-            game.tiro[game.n_tiro].x = game.player.x;
-            game.tiro[game.n_tiro].y = game.player.y;
-            game.tiro[game.n_tiro].dx = 1;
-            game.tiro[game.n_tiro].dy = 0;
-
-            game.tiro[game.n_tiro].x += VELOCIDADE;
-            game.tiro[game.n_tiro].active = true;
-            game.n_tiro++;
-        }
-        if(IsKeyPressed(KEY_LEFT)){
-            game.tiro[game.n_tiro].x = game.player.x;
-            game.tiro[game.n_tiro].y = game.player.y;
-            game.tiro[game.n_tiro].dx = -1;
-            game.tiro[game.n_tiro].dy = 0;
-            game.tiro[game.n_tiro].active = true;
-            game.n_tiro++;
-        }
-        if(IsKeyPressed(KEY_UP)){
-            game.tiro[game.n_tiro].x = game.player.x;
-            game.tiro[game.n_tiro].y = game.player.y;
-            game.tiro[game.n_tiro].dx = 0;
-            game.tiro[game.n_tiro].dy = 1;
-            game.tiro[game.n_tiro].active = true;
-            game.n_tiro++;
-        }
-        if(IsKeyPressed(KEY_DOWN)){
-            game.tiro[game.n_tiro].x = game.player.x;
-            game.tiro[game.n_tiro].y = game.player.y;
-            game.tiro[game.n_tiro].dx = 0;
-            game.tiro[game.n_tiro].dy = -1;
-            game.tiro[game.n_tiro].active = true;
-            game.n_tiro++;
-        }
-
-        //MOVIMENTAR OS TIROS
-        for(i = 0; i <= game.n_tiro; i++){
-            if(game.tiro[i].x != NULL && game.tiro[i].y != NULL){
-                if( game.tiro[i].collided != true){
-                    movimentar(&game.tiro[i]);
-                }else{
-                    game.tiro[i].active = false;
-                    game.tiro[i].x = NULL;
-                    game.tiro[i].y = NULL;
-                }
+       
+            if(IsKeyPressed(KEY_RIGHT)){
+                game.player.tiro[game.player.n_tiros].x = game.player.x;
+                game.player.tiro[game.player.n_tiros].y = game.player.y;
+                game.player.tiro[game.player.n_tiros].dx = 1;
+                game.player.tiro[game.player.n_tiros].dy = 0;
+                game.player.tiro[game.player.n_tiros].active = true;
+                game.player.n_tiros++;
+            }
+            if(IsKeyPressed(KEY_LEFT)){
+                game.player.tiro[game.player.n_tiros].x = game.player.x;
+                game.player.tiro[game.player.n_tiros].y = game.player.y;
+                game.player.tiro[game.player.n_tiros].dx = -1;
+                game.player.tiro[game.player.n_tiros].dy = 0;
+                game.player.tiro[game.player.n_tiros].active = true;
+                game.player.n_tiros++;
+            }
+            if(IsKeyPressed(KEY_UP)){
+                game.player.tiro[game.player.n_tiros].x = game.player.x;
+                game.player.tiro[game.player.n_tiros].y = game.player.y;
+                game.player.tiro[game.player.n_tiros].dx = 0;
+                game.player.tiro[game.player.n_tiros].dy = 1;
+                game.player.tiro[game.player.n_tiros].active = true;
+                game.player.n_tiros++;
+            }
+            if(IsKeyPressed(KEY_DOWN)){
+                game.player.tiro[game.player.n_tiros].x = game.player.x;
+                game.player.tiro[game.player.n_tiros].y = game.player.y;
+                game.player.tiro[game.player.n_tiros].dx = 0;
+                game.player.tiro[game.player.n_tiros].dy = -1;
+                game.player.tiro[game.player.n_tiros].active = true;
+                game.player.n_tiros++;
             }
         }
 
-        if(game.n_tiro >=10){
-            game.n_tiro =0;
-        }
-
-            //COLISAO DO TIRO COM OS INIMIGOS
-            //Gaper
-            for (i = 0; i < game.n_gaper; i++)
-            {
-                for(j = 0; j <= game.n_tiro; j++ ){
-                    if ((game.tiro[j].x + game.tiro[j].dx == game.gaper[i].x && game.tiro[j].y == game.gaper[i].y) ||
-                        (game.tiro[j].y - game.tiro[j].dy == game.gaper[i].y && game.tiro[j].x == game.gaper[i].x))
-                    {
-                        game.tiro[j].collided = true;
-                        game.tiro[j].active = false;
-                    }
-                    if ((game.gaper[i].x + game.gaper[i].dx == game.tiro[j].x && game.gaper[i].y == game.tiro[j].y) ||
-                        (game.gaper[i].y - game.gaper[i].dy == game.tiro[j].y && game.gaper[i].x == game.tiro[j].x))
-                    {
-                        game.gaper[i].collided = true;
-                        game.gaper[i].health--;
-
-                        if(game.gaper[i].health <= 0){
-                            game.gaper[i].active = false;
-                            game.gaper[i].x = NULL;
-                            game.gaper[i].y = NULL;
-                            game.player.pontuacao += 1000;
-                        }
-
-                    }
-                }
-            }
-
-        //Pooter:
-            for (i = 0; i < game.n_pooter; i++)
-            {
-                for(j = 0; j <= game.n_tiro; j++ ){
-                    if ((game.tiro[j].x + game.tiro[j].dx == game.pooter[i].x && game.tiro[j].y == game.pooter[i].y) ||
-                        (game.tiro[j].y - game.tiro[j].dy == game.pooter[i].y && game.tiro[j].x == game.pooter[i].x))
-                    {
-                        game.tiro[j].collided = true;
-                        game.tiro[j].active = false;
-                    }
-                    if ((game.pooter[i].x + game.pooter[i].dx == game.tiro[j].x && game.pooter[i].y == game.tiro[j].y) ||
-                        (game.pooter[i].y - game.pooter[i].dy == game.tiro[j].y && game.pooter[i].x == game.tiro[j].x))
-                    {
-                        game.pooter[i].collided = true;
-                        game.pooter[i].health--;
-
-                        if(game.pooter[i].health >= 0){
-                            game.pooter[i].active = false;
-                            game.player.pontuacao += 1000;
-                        }
-
-                    }
-                }
-            }
-
+        atirar(&game.player);
+     
+        
         //PORTAL ATIVO OU NAO
         int count_enemies = 0;
         for(i = 0; i < game.n_gaper; i++){
@@ -1055,7 +1104,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         }
         if(game.boss.active)
             count_enemies++;
-        
         if(!count_enemies)
             game.portal.active = true;
         else game.portal.active = false;
@@ -1104,21 +1152,34 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                 if (game.pooter[i].collided) {
                     redefineDeslocamento(&game.pooter[i], &enemy_steps);
                 }
-                if (rayCast(game.pooter[i], game.player) != 0) {
+                if (rayCast(game.pooter[i], game.player)) {
                     // Chama a funcao que verifica se tem paredes entre o game.gaper e o jogador
                     game.pooter[i].canChase = false;
                 }
-                if (game.pooter[i].canChase && !game.pooter[i].collided) {
+                    if (game.pooter[i].canChase && game.player.active) {
+                        //for(j = 0; j < MAX_TIROS; j++){
+                        game.pooter[j].tiro[i].delay -= GetFrameTime();
+                        if(game.pooter[j].tiro[i].delay  <= 0){
+                                game.pooter[i].tiro[game.pooter[i].n_tiros].x = game.pooter[i].x;
+                                game.pooter[i].tiro[game.pooter[i].n_tiros].y = game.pooter[i].y;
+                                game.pooter[i].tiro[game.pooter[i].n_tiros].active = true;
+                                game.pooter[j].tiro[i].delay  = 2;
+                                game.pooter[i].n_tiros++;
+                        }
+                            
+                            
+                        //}
+                    }else if (enemy_steps > 0) {
+                            movimentar(&game.pooter[i]);
+                            enemy_steps--;
+                        }
+                    
 
-                } else {
-                    if (enemy_steps > 0) {
-                        movimentar(&game.pooter[i]);
-                        enemy_steps--;
-                    }
-                }
+                
                 checkCollision(&game.pooter[i]);
                 game.pooter[i].canChase = true;
             }
+            atirar(&game.pooter[i]);
 
         }
         
@@ -1128,13 +1189,10 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                 game.n_bombas++;
                 game.bomb[game.n_bombas-1].x = game.player.x;
                 game.bomb[game.n_bombas-1].y = game.player.y;
-                
                 game.bomb[game.n_bombas-1].active = true;
                 game.bomb[game.n_bombas-1].colectable = false;
                 game.player.n_bombs--;
             }
-                
-                
 
         }
 
@@ -1142,7 +1200,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         
         /* printf("\nplayer health: %d\n", game.player.health);
         printf("player lives: %d\n", game.player.lives);*/
-        printf("player bombs: %d\n", game.player.n_bombs);
+        //printf("player bombs: %d\n", game.player.n_bombs);
  
         if (IsKeyPressed(KEY_SPACE)) {
             game.state = 'p';
