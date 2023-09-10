@@ -38,6 +38,13 @@
 #define EXP_AREA EXP_RADIUS*EXP_RADIUS*400
 #define DEATH_DELAY 2 //Tempo que o personagem fica morto
 #define MAX_TIROS 10
+#define PLAYER_SPEED 0.10
+#define ENEMY_SPEED 0.11
+#define BOSS_SPEED 0.18
+#define SHOT_SPEED 0.065
+#define BOSS_DELAY 30 //Tempo para o boss chamar reforcos
+#define MAX_SCORES 10
+
 
 
 
@@ -49,6 +56,7 @@ typedef struct TIRO{
     int x, y;
     int dx, dy;
     float delay;
+    float speed;
     bool active; //Retorna se esta ativo ou nao
     bool collided; //Retorna se entidade esta em colisao
     bool isPlayer;
@@ -61,6 +69,8 @@ typedef struct ENTIDADE {
     int x, y;   // posicao x e y
     int dx, dy; // direcoes
     int health; // Saude
+    float delay; // delay do movimento
+    float special_delay; //delay da habilidade especial
     int lives;
     int pontuacao;
     int n_bombs;
@@ -71,6 +81,7 @@ typedef struct ENTIDADE {
     bool collided; //Retorna se entidade esta em colisao
     bool canChase; //Retorna se entidade pode perseguir um jogador
     bool isPlayer;
+    bool isBoss;
 } ENTIDADE; // Struct usada para criar novas "entidades" como jogadores e inimigos.
 //--------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------
@@ -266,13 +277,20 @@ void redefineDeslocamento(ENTIDADE *inimigo, int *steps) //Redefine o deslocamen
             inimigo->dy = 1 - (rand() % 3);
     }
     if (*steps == 0)
-        *steps = (int)GetFrameTime() * 500 + (rand() % (int)(GetFrameTime() * 800)); // Define um tempo para o game.gaper se movimentar
+        *steps = 10 + rand() % 60; // Define um tempo para o game.gaper se movimentar
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void movimentar(ENTIDADE *entidade) //Movimenta uma entidade dentro do mapa, evitando mover atraves das paredes
 {
-     if(timer.moviment > 0.1){
+    float move_delay;
+    if(entidade->isPlayer)
+        move_delay = PLAYER_SPEED;
+    else move_delay = ENEMY_SPEED;
+
+    entidade->delay += GetFrameTime();
+
+    if(entidade->delay > move_delay){
         entidade->collided = false;
         if (!(game.map[entidade->y][entidade->x + entidade->dx])) {
             entidade->collided = true;
@@ -283,11 +301,37 @@ void movimentar(ENTIDADE *entidade) //Movimenta uma entidade dentro do mapa, evi
             entidade->collided = true;
         } else
             entidade->y -= VELOCIDADE * entidade->dy;
+        entidade->delay = 0;
     } 
     
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
+void movimentarBoss(ENTIDADE *entidade){ //Movimenta entidades maiores
+    int i, j;
+    entidade->collided = false;
+    entidade->delay += GetFrameTime();
+    for(i = 0; i < MAP_HEIGHT; i++){
+        for(j = 0; j < MAP_WIDTH; j++){
+            if(!game.map[i][j]){
+                if(CheckCollisionRecs((Rectangle){(entidade->x+entidade->dx), (entidade->y - entidade->dy), 7, 7},(Rectangle){j, i, 1, 1})){
+                    entidade->collided = true;
+                } 
+            }
+        }
+    }
+    if(entidade->delay > BOSS_SPEED){
+        if(!entidade->collided){
+            entidade->x += VELOCIDADE * entidade->dx;
+            entidade->y -= VELOCIDADE * entidade->dy;
+        }
+        entidade->delay = 0;
+    }
+
+
+}
+
+
 int rayCast(ENTIDADE a, ENTIDADE b) //Funcao que esstabelece um vetor posicao relativa entre duas entidades. funciona como uma linha de visao para os inimigos
 {
     int abx = b.x - a.x;                     // vetor posicao dos dois objetos no eixo x
@@ -328,7 +372,7 @@ void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos 
     // Colisoes com os inimigos
     //Gaper:
         for (i = 0; i < game.n_gaper; i++) {
-            if(game.gaper[i].active){
+            if(game.gaper[i].active && game.player.active){
                 if ((game.player.x + game.player.dx == game.gaper[i].x && game.player.y == game.gaper[i].y) ||
                     (game.player.y - game.player.dy == game.gaper[i].y && game.player.x == game.gaper[i].x)) {
                     game.player.health -= 60;
@@ -338,13 +382,19 @@ void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos 
         }
     //Pooter:
         for (i = 0; i < game.n_pooter; i++) {
-            if(game.pooter[i].active){
+            if(game.pooter[i].active && game.player.active){
                 if ((game.player.x + game.player.dx == game.pooter[i].x && game.player.y == game.pooter[i].y) ||
                     (game.player.y - game.player.dy == game.pooter[i].y && game.player.x == game.pooter[i].x)) {
                     game.player.health -= 60;
                     game.player.active = false;//Player fica invulneravel apos o primeiro dano
                 }
             }            
+        }
+
+        //Colisao com o boss
+        if( ((game.player.x - game.boss.x) >= 0 && (game.player.x - game.boss.x) < 7) && ((game.player.y - game.boss.y) >= 0 && (game.player.y - game.boss.y) < 7) && game.boss.active && game.player.active){
+            //printf("Entrou no boss! %d, %d\n", game.player.x - game.boss.x, game.player.y - game.boss.y);
+            game.player.health -= 90;
         }
 
 
@@ -354,8 +404,9 @@ void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos 
         for (i = 0; i < game.n_bombas; i++) {
             if ((game.player.x + game.player.dx == game.bomb[i].x && game.player.y == game.bomb[i].y) ||
                 (game.player.y - game.player.dy == game.bomb[i].y && game.player.x == game.bomb[i].x)){
-                if(game.bomb[i].colectable  && game.bomb[i].active){
+                if(game.bomb[i].colectable  && game.bomb[i].active && game.player.active){
                     game.player.n_bombs++;
+                    game.player.pontuacao += 50;
                     game.bomb[i].active = false;
 
                 } else if (!game.bomb[i].colectable && game.bomb[i].active){
@@ -382,10 +433,17 @@ void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos 
             if((ent->x == game.player.tiro[i].x && ent->y == game.player.tiro[i].y) && game.player.tiro[i].active){
                 if(!ent->isPlayer){//Player nao morre com proprio tiro
                     ent->health -= 60;
+                    game.player.pontuacao += 150;
                     game.player.tiro[i].collided = true;
                 }
             }
+            if((game.player.tiro[i].x - game.boss.x) >= 0 && (game.player.tiro[i].x - game.boss.x) < 7 && (game.player.tiro[i].y - game.boss.y) >= 0 && (game.player.tiro[i].y - game.boss.y < 7) && game.boss.active && game.player.tiro[i].active){
+                game.boss.health -= 60;
+                game.player.pontuacao += 50;
+                game.player.tiro[i].collided = true;
+            }
         }
+        
         //Tiros do inimigo
         for (i = 0; i < game.n_pooter; i++) {
             for(j = 0; j < MAX_TIROS; j++){
@@ -400,14 +458,21 @@ void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos 
             
         }
 
+        //Explosoes:
         for(i = 0; i < game.n_explosion; i++){
         if(ent->x == game.explosion[i].x && ent->y == game.explosion[i].y) {
             ent->health -= 100;
+            game.player.pontuacao += 500;
         }
     }
 
     if(ent->health <= 0){
         ent->active = false;
+    }
+
+    if(game.boss.health <= 0 && game.boss.active){
+        game.boss.active = false;
+        game.player.pontuacao += 5000;
     }
 
 }
@@ -426,7 +491,10 @@ void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseg
     else if (((game.player.y) > (gaper->y))) {
         gaper->dy = -1;
     }
-    movimentar(gaper);
+    if(gaper->isBoss == true){
+        movimentarBoss(gaper);
+    }
+    else movimentar(gaper);
 }
 //------------------------------------------------------------------------------------------------
 void checkBombs(){
@@ -562,6 +630,7 @@ void checkBombs(){
 void DrawGame(){ //Funcao que desenha o jogo
     int i, j;
     int orientation;
+    char text[50];
     Rectangle source;
     Rectangle dest;
     Vector2 origin;
@@ -642,10 +711,12 @@ void DrawGame(){ //Funcao que desenha o jogo
 
 
     //DESENHA A HUB
-        DrawText(TextFormat("TIME: %.02f", (float)game.frameCount/60), 10, (MAP_HEIGHT*FATORY)+50, 20, WHITE);
-        DrawText(TextFormat("VIDAS: %d", game.player.lives), 10,(MAP_HEIGHT*FATORY)+70, 20, WHITE);
-        DrawText(TextFormat("BOMBAS: %d", game.player.n_bombs), 10,(MAP_HEIGHT*FATORY)+90, 20, WHITE);
-        DrawText(TextFormat("PONTUACAO: %d", game.player.pontuacao), 10,(MAP_HEIGHT*FATORY)+110, 20, WHITE);
+        DrawText(TextFormat("TIME: %03.2f", (float)game.frameCount/60), 10, (MAP_HEIGHT*FATORY)+50, 20, WHITE);
+        DrawText(TextFormat("SAUDE: %03d", game.player.health), 10, (MAP_HEIGHT*FATORY)+70, 20, WHITE);
+        DrawText(TextFormat("VIDAS: %02d", game.player.lives), 10,(MAP_HEIGHT*FATORY)+90, 20, WHITE);
+        DrawText(TextFormat("BOMBAS: %02d", game.player.n_bombs), 10,(MAP_HEIGHT*FATORY)+110, 20, WHITE);
+        DrawText(TextFormat("PONTUACAO: %07d", game.player.pontuacao), 10,(MAP_HEIGHT*FATORY)+130, 20, WHITE);
+
 
     //DESENHA OS TIROS do Jogador
         for(i = 0; i < MAX_TIROS; i++){
@@ -676,10 +747,6 @@ void DrawGame(){ //Funcao que desenha o jogo
             }
         }
 
-    // spritesheet = LoadTexture("../sprites/spritesheet.png");
-    // DrawTexture(spritesheet, game.player.x*FATORX+MARGIN_LEFT, game.player.y*FATORY+MARGIN_TOP, RAYWHITE);
-
-
 
     
     if(game.portal.x > MAP_WIDTH/2)
@@ -698,7 +765,6 @@ void DrawGame(){ //Funcao que desenha o jogo
     //Desenha o portal
     DrawTexturePro(game.portal.texture, source, dest, origin, 0.0, RAYWHITE);
 
-    
 
 
 
@@ -765,9 +831,12 @@ void DrawGame(){ //Funcao que desenha o jogo
     }
     if(game.boss.active){
             source = (Rectangle){game.boss.spritex, game.boss.spritey, s_sizex*4, s_sizey*4}; //Cordenadas da spritesheet: posicao x e y da sprite, largura e altura que vai ser mostrado (Ao usar laguras e alturas negativas, inverte a imagem)
-            dest = (Rectangle){game.boss.x*FATORX, game.boss.y*FATORY, LADO_QUADRADOX*2*4, LADO_QUADRADOY*2*4};
+            dest = (Rectangle){(game.boss.x)*FATORX, (game.boss.y)*FATORY, LADO_QUADRADOX*2*4, LADO_QUADRADOY*2*4};
             //dest e o destino da sprite, ou seja, a posicao onde vai ser exibida na tela(como a posicao do jogador);
             DrawTexturePro(game.boss.texture, source, dest, origin, 0.0, RAYWHITE);
+
+            sprintf(text, "Chamar aliados: %.1f", game.boss.special_delay);
+            DrawText(text, LARGURA/2 - MeasureText(text, FONT_SIZE) + MARGIN_LEFT, 100 + MARGIN_TOP, FONT_SIZE, RED);
         }
     
 
@@ -778,7 +847,7 @@ void DrawGame(){ //Funcao que desenha o jogo
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void atirar(ENTIDADE *ent){
+void moverProjeteis(ENTIDADE *ent){
     int i;
     if(ent->n_tiros == MAX_TIROS) ent->n_tiros = 0;
     if(!ent->isPlayer){
@@ -804,7 +873,8 @@ void atirar(ENTIDADE *ent){
     
     for(i = 0; i < MAX_TIROS; i++){
         if(ent->tiro[i].active){
-            if(timer.moviment > 0.1){
+            ent->tiro[i].speed += GetFrameTime();
+            if(ent->tiro[i].speed > SHOT_SPEED){
                 if (!(game.map[ent->tiro[i].y][ent->tiro[i].x + ent->tiro[i].dx])) {
                 ent->tiro[i].collided = true;
                 } else
@@ -814,6 +884,8 @@ void atirar(ENTIDADE *ent){
                     ent->tiro[i].collided = true;
                 } else
                     ent->tiro[i].y -= VELOCIDADE * ent->tiro[i].dy;
+                    
+                ent->tiro[i].speed = 0;
             }
         }
         if(ent->tiro[i].collided){
@@ -824,9 +896,94 @@ void atirar(ENTIDADE *ent){
     }
     
 }
+
+
+void finishGame(){FILE *highscorebin;//, *highscoretxt;
+    int i = 0, j, tmp;
+    int scores[MAX_SCORES] = {0}; //pontuacoes exibidas
+    int buffer[MAX_SCORES] = {0};
+    char filename[50] = "highscores.bin";
+    //char currentscore[10]; //pontuacao do jogo atual
+    //char playername[50] = "jogador"; //nome do jogador do jogo atual
+    
+
+    highscorebin = fopen(filename, "ab+");
+    if(!highscorebin){
+        puts("Erro ao abrir highcores.bin");
+    } else{
+        i = 0;
+        while(i < MAX_SCORES && !feof(highscorebin)){
+            if((fread(&buffer[i], sizeof(int), 1, highscorebin)) != 1){
+                puts("Erro ao obter as pontuacoes do arquivo highscores.bin");
+            }else{
+                scores[i] = buffer[i];
+            }
+            i++;
+        }
+        puts("Pontuacao contida em highscores.bin:");
+        for(i = 0; i < MAX_SCORES; i++){
+            printf("%5d", scores[i]);
+        }
+        printf("\n");
+
+        for(i = 0; i < MAX_SCORES; i++){
+            for(j = 0; j < MAX_SCORES; j++){
+                if(scores[i] > scores[j]){
+                    tmp = scores[j];
+                    scores[j] = scores[i];
+                    scores[i] = tmp;
+                }
+            }
+        }
+        puts("Pontuacao ordenada:");
+        for(i = 0; i < MAX_SCORES; i++){
+            printf("%5d", scores[i]);
+        }
+        printf("\n");
+
+        for(i = 0; i < MAX_SCORES; i++){
+            if(game.player.pontuacao > scores[i]){
+                tmp = scores[i];
+                scores[i] = game.player.pontuacao;
+                scores[MAX_SCORES-1] = tmp;
+                i = 10;
+            }
+        }
+        for(i = 0; i < MAX_SCORES; i++){
+            for(j = 0; j < MAX_SCORES; j++){
+                if(scores[i] > scores[j]){
+                    tmp = scores[j];
+                    scores[j] = scores[i];
+                    scores[i] = tmp;
+                }
+            }
+        }
+        puts("Pontuacao Inserida:");
+        for(i = 0; i < MAX_SCORES; i++){
+            printf("%5d", scores[i]);
+        }
+        printf("\n");
+        fclose(highscorebin);
+    }
+
+    highscorebin = fopen(filename, "wb");
+    if(!highscorebin){
+        puts("Erro ao abrir arquivo highscores.bin para insercao de scores");
+    } else{
+        if((fwrite(scores, sizeof(int), MAX_SCORES, highscorebin)) != MAX_SCORES){
+            puts("Erro ao gravar a pontuacao do jogador");
+        }
+
+        fclose(highscorebin);
+    }
+
+}
+
+
 void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o load do save e quando avanca de fase)
 {
     if(game.state == 'n'){
+        game.current_map = 1;
         game.player.health = 100;
         game.player.lives = 3;
         game.player.n_bombs = 0;
@@ -835,7 +992,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
     }
     game.state = '\0';
     int enemy_steps = 0;
-
     int i, j;
     int x = 0, y = 0;
 
@@ -844,7 +1000,8 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
     if (!game.isLoaded) { //Reseta o numero de itens e inimigos caso o jogo NAO tenha sido carregado a partir de um save
         game.n_bombas = 0;
         game.n_gaper = 0;
-        game.n_pooter = 0;
+        game.n_pooter = 0;  
+        game.n_explosion = 0;
         game.n_traps = 0;
     }
 
@@ -852,7 +1009,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         // Se o modo de jogo for 1, gera o mapa e os spawns aleatoriamente, se nao, carrega os arquivos
         loadMap();
     } else {
-
         int difficulty = 1;
         game.n_gaper = (1 + (difficulty * game.current_map))/2;
         game.n_pooter = (1 + (difficulty * game.current_map))/4;
@@ -869,11 +1025,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         if (game.n_traps > MAX_TRAPS)
             game.n_traps = MAX_TRAPS;
 
-        for (i = 0; i < MAP_HEIGHT; i++) {
-            for (j = 0; j < MAP_WIDTH; j++) {
-                game.map[i][j] = 0;
-            }
-        }
+    
         if (generateMap(game.map)) {
             puts("game generated sucessfully!");
         } else
@@ -899,21 +1051,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         game.player.active = true;
         puts("Setted player spawn");
 
-        if(game.current_map == 10){
-            x = 0;
-            y = 0;
-            while (game.map[y][x] == 0) {
-                x = 3 + (rand() % MAP_WIDTH - 3);              
-                y = 3 + rand() % ((MAP_HEIGHT - 3) / 2); // ENTIDADE spawna em qualquer posicao livre do mapa
-            }
-            game.boss.x = x;
-            game.boss.y = y;
-            puts("Setted player spawn");
-        }
-
-
-
-
 
         // Portal
 
@@ -937,13 +1074,14 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         printf("Traps spawns sucessfully setted: %d traps in current map\n", game.n_traps);
     }
     if (!game.isLoaded) {
-        game.boss.active = true;
-        if(game.current_map == 10){
-            game.boss.health = 1000;
-        } else{
-            game.boss.health = -1;
-        }
+        if(!(game.current_map % 10)){ //spawna o boss em mapas multiplos de 10
+            game.boss.health = 10000;
+            game.boss.active = true;
+            game.boss.isBoss = true;
+            game.boss.delay = 0;          
+            game.boss.special_delay = BOSS_DELAY;
 
+        }
 
         for (i = 0; i < game.n_gaper; i++) {
             redefineDeslocamento(&game.gaper[i], &enemy_steps);
@@ -981,26 +1119,21 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         game.n_explosion = 0;
         game.portal.active = false;
         timer.death = 0;
-        timer.moviment = 0;
-        timer.invecible = 0;        
+        timer.invecible = 0; 
+        game.player.delay = 0;
         game.player.n_tiros = 0;
         game.player.texture = LoadTexture("../sprites/isaac.png");
         game.player.isPlayer = true;
         game.player.active = false;
     }
     game.isLoaded = false;
+    if(game.modo_jogo)
+            game.boss.active = false;
 
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------
     while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
-
-        timer.moviment += GetFrameTime();
-
-        if(game.boss.health <= 0){
-            game.boss.active = false;
-        }
-        
         
         if(IsKeyPressed(KEY_Y)){ //Especial do personagem
             if(game.player.active)
@@ -1017,6 +1150,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             game.state = 'e';
             menu(1);
             if (game.state == 'g') {
+                finishGame();
                 return; // Remove um bug de o jogador iniciar um novo jogo pelo pause e morrer na primeira fase e nao exibir o game over
             }
         }
@@ -1041,7 +1175,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                 game.player.lives--;
                 game.player.health = 100;
                 timer.death = 0;
-                timer.moviment = 0;
+                game.player.delay = 0;
             }
         }
         if(!game.player.active && !timer.death){
@@ -1088,30 +1222,8 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                 game.player.n_tiros++;
             }
         }
-
-        atirar(&game.player);
+        moverProjeteis(&game.player);
      
-        
-        //PORTAL ATIVO OU NAO
-        int count_enemies = 0;
-        for(i = 0; i < game.n_gaper; i++){
-            if(game.gaper[i].active)
-                count_enemies++;
-        }
-        for(i = 0; i < game.n_pooter; i++){
-            if(game.pooter[i].active)
-                count_enemies++;
-        }
-        if(game.boss.active)
-            count_enemies++;
-        if(!count_enemies)
-            game.portal.active = true;
-        else game.portal.active = false;
-       
-
-	    //ATUALIZA O TEMPO
-        game.frameCount++;
-
 
         // Movimentacao do jogador
         if (!game.player.collided)
@@ -1159,17 +1271,19 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                     if (game.pooter[i].canChase && game.player.active) {
                         //for(j = 0; j < MAX_TIROS; j++){
                         game.pooter[j].tiro[i].delay -= GetFrameTime();
+
                         if(game.pooter[j].tiro[i].delay  <= 0){
                                 game.pooter[i].tiro[game.pooter[i].n_tiros].x = game.pooter[i].x;
                                 game.pooter[i].tiro[game.pooter[i].n_tiros].y = game.pooter[i].y;
                                 game.pooter[i].tiro[game.pooter[i].n_tiros].active = true;
-                                game.pooter[j].tiro[i].delay  = 2;
+                                game.pooter[j].tiro[i].delay = 2;
                                 game.pooter[i].n_tiros++;
                         }
                             
                             
                         //}
-                    }else if (enemy_steps > 0) {
+                    }
+                    if (enemy_steps > 0) {
                             movimentar(&game.pooter[i]);
                             enemy_steps--;
                         }
@@ -1179,9 +1293,73 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                 checkCollision(&game.pooter[i]);
                 game.pooter[i].canChase = true;
             }
-            atirar(&game.pooter[i]);
+            moverProjeteis(&game.pooter[i]);
 
         }
+
+        //PORTAL ATIVO OU NAO
+        int count_enemies = 0;
+
+        for(i = 0; i < game.n_gaper; i++){
+            if(game.gaper[i].active)
+                count_enemies++;
+        }
+        for(i = 0; i < game.n_pooter; i++){
+            if(game.pooter[i].active)
+                count_enemies++;
+        }
+        
+        if(!(game.current_map % 10)){
+            if(game.boss.active){
+                count_enemies++;
+                game.boss.special_delay -= GetFrameTime();
+                //printf("boss delay: %.1f\n", game.boss.special_delay);
+                if(game.boss.special_delay <= 0){
+                    game.boss.active = false;
+                    game.n_gaper = 3;
+                    game.n_pooter = 3;
+                    
+                    spawnEnemies(game.gaper, game.n_gaper);
+                    spawnEnemies(game.pooter, game.n_pooter);
+                    
+                }
+                
+                if (rayCast(game.boss, game.player)) {
+                    // Chama a funcao que verifica se tem paredes entre o gaper e o jogador
+                    game.boss.canChase = false;
+                }
+                if (game.boss.canChase && game.player.active) {
+                    persegue(game.player, &game.boss);
+                } else {
+                    if (enemy_steps <= 0)
+                        redefineDeslocamento(&game.boss, &enemy_steps);
+                    else{
+                        movimentarBoss(&game.boss);
+                        enemy_steps--;
+                    }
+                    if (game.boss.collided) {
+                        redefineDeslocamento(&game.boss, &enemy_steps);
+                    }
+                }
+                checkCollision(&game.boss);
+                game.boss.canChase = true;
+                
+            }
+            if(!count_enemies && game.boss.health > 0){
+                game.n_gaper = 0;
+                game.n_pooter = 0;
+                game.boss.active = true;
+                game.boss.special_delay = BOSS_DELAY;
+            }
+
+        }
+        
+        
+    
+        if(!count_enemies)
+            game.portal.active = true;
+        else game.portal.active = false;
+
         
 
         if((IsKeyPressed(KEY_E) && !timer.death)){
@@ -1197,6 +1375,12 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         }
 
         checkBombs();
+
+        
+       
+
+	    //ATUALIZA O TEMPO
+        game.frameCount++;
         
         /* printf("\nplayer health: %d\n", game.player.health);
         printf("player lives: %d\n", game.player.lives);*/
@@ -1207,9 +1391,10 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         }
 
         // Portal
-        if ((game.player.x == game.portal.x && game.player.y == game.portal.y && game.portal.active) && game.player.active)
+        if ((game.player.x == game.portal.x && game.player.y == game.portal.y && game.portal.active) && game.player.active){
+            game.player.pontuacao += 300;
             game.state = 'p';
-
+        }
         // Game Over:
         if (IsKeyPressed(KEY_MINUS))
             game.player.health = 0;
@@ -1220,9 +1405,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE + 10) / 2, ALTURA / 2 - FONT_SIZE + 10, FONT_SIZE, RED);
             return;
         }
-        if(timer.moviment > 0.1)
-            timer.moviment = 0;
-
 
         
         //---------------------------------------------------------------------------
@@ -1241,6 +1423,9 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         puts("Changing current map...\n");
         if (game.current_map < MAX_MAPS)
             game.current_map++;
+        else{
+            finishGame();
+        }
         novo_jogo();
     }
 }
@@ -1448,7 +1633,7 @@ int main(void) //Funcao principal que apenas chama o menu
     //
     game.state = '\0'; // Estados do jogo
     // char save_path[50] = "../saves/save.bin";
-
+    SetTraceLogLevel(LOG_ERROR);
     InitWindow(LARGURA, ALTURA, "The Binding of Isaac");
     SetTargetFPS(60);
     SetExitKey(KEY_NULL); // remove a opcao de sair do jogo
