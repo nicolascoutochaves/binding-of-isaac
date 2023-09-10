@@ -43,6 +43,7 @@
 #define BOSS_SPEED 0.18
 #define SHOT_SPEED 0.065
 #define BOSS_DELAY 30 //Tempo para o boss chamar reforcos
+#define SPECIAL_DELAY 10 //delay para o player usar o especial
 #define MAX_SCORES 10
 
 
@@ -290,8 +291,7 @@ void movimentar(ENTIDADE *entidade) //Movimenta uma entidade dentro do mapa, evi
 
     entidade->delay += GetFrameTime();
 
-    if(entidade->delay > move_delay){
-        entidade->collided = false;
+    if(entidade->delay > move_delay && !entidade->collided){
         if (!(game.map[entidade->y][entidade->x + entidade->dx])) {
             entidade->collided = true;
         } else
@@ -402,22 +402,21 @@ void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos 
         // Colisoes com itens to mapa:
         // Bombas
         for (i = 0; i < game.n_bombas; i++) {
-            if ((game.player.x + game.player.dx == game.bomb[i].x && game.player.y == game.bomb[i].y) ||
-                (game.player.y - game.player.dy == game.bomb[i].y && game.player.x == game.bomb[i].x)){
-                if(game.bomb[i].colectable  && game.bomb[i].active && game.player.active){
-                    game.player.n_bombs++;
-                    game.player.pontuacao += 50;
-                    game.bomb[i].active = false;
-
-                } else if (!game.bomb[i].colectable && game.bomb[i].active){
-                    game.player.collided = true;
+            if ((ent->x + ent->dx == game.bomb[i].x && ent->y == game.bomb[i].y) ||
+                (ent->y - ent->dy == game.bomb[i].y && ent->x == game.bomb[i].x)){
+                if (!game.bomb[i].colectable && game.bomb[i].active){
+                    ent->collided = true;
                 }
-                
+
+                if(game.bomb[i].colectable  && game.bomb[i].active && ent->active && ent->isPlayer){
+                    ent->n_bombs++;
+                    ent->pontuacao += 50;
+                    game.bomb[i].active = false;
+                }
             }
         }
-        if(game.player.x == game.bomb[game.n_bombas-1].x && game.player.y == game.bomb[game.n_bombas-1].y)
-            game.player.collided = false; //Corrige o bug do player botar a bomba e se prender dentro dela
-        
+        if(ent->x == game.bomb[game.n_bombas-1].x && ent->y == game.bomb[game.n_bombas-1].y)
+            ent->collided = false; //Corrige o bug de ficar preso dentro da bomba (principalmente quando player bota a bomba)
 
 
 
@@ -480,6 +479,7 @@ void checkCollision(ENTIDADE *ent){ //Checa as colisoes entre jogador, inimigos 
 //------------------------------------------------------------------------------------------------
 void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseguicao entre inimigo e jogador
 {
+    int steps; //Passos aleatorios que gaper vai dar caso colida com algum objeto
     if (((game.player.x) > (gaper->x))) {
         gaper->dx = 1;
     }
@@ -490,6 +490,11 @@ void persegue(ENTIDADE player, ENTIDADE *gaper) //Funcao que implementa a perseg
     }
     else if (((game.player.y) > (gaper->y))) {
         gaper->dy = -1;
+    }
+
+    if(gaper->collided){
+        gaper->dx *= -1;
+        gaper->dy *= -1;
     }
     if(gaper->isBoss == true){
         movimentarBoss(gaper);
@@ -711,11 +716,14 @@ void DrawGame(){ //Funcao que desenha o jogo
 
 
     //DESENHA A HUB
+        DrawText(TextFormat("FASE ATUAL: %02d", game.current_map), 10, (MAP_HEIGHT*FATORY)+30, 20, WHITE);
         DrawText(TextFormat("TIME: %03.2f", (float)game.frameCount/60), 10, (MAP_HEIGHT*FATORY)+50, 20, WHITE);
         DrawText(TextFormat("SAUDE: %03d", game.player.health), 10, (MAP_HEIGHT*FATORY)+70, 20, WHITE);
         DrawText(TextFormat("VIDAS: %02d", game.player.lives), 10,(MAP_HEIGHT*FATORY)+90, 20, WHITE);
         DrawText(TextFormat("BOMBAS: %02d", game.player.n_bombs), 10,(MAP_HEIGHT*FATORY)+110, 20, WHITE);
         DrawText(TextFormat("PONTUACAO: %07d", game.player.pontuacao), 10,(MAP_HEIGHT*FATORY)+130, 20, WHITE);
+        DrawText(TextFormat("ESPECIAL COOLDOWN: %.1f", game.player.special_delay), 10,(MAP_HEIGHT*FATORY)+150, 20, WHITE);
+
 
 
     //DESENHA OS TIROS do Jogador
@@ -847,6 +855,7 @@ void DrawGame(){ //Funcao que desenha o jogo
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
+
 void moverProjeteis(ENTIDADE *ent){
     int i;
     if(ent->n_tiros == MAX_TIROS) ent->n_tiros = 0;
@@ -897,16 +906,28 @@ void moverProjeteis(ENTIDADE *ent){
     
 }
 
+void highscores(){
+    FILE *highscores;
+    char filename[50] = "../highscores.txt";
 
-void finishGame(){FILE *highscorebin;//, *highscoretxt;
+    highscores = fopen(filename, "r");
+    if (!highscores){
+        puts("Erro ao ler os placares");
+    }
+}
+
+void finishGame(){FILE *highscorebin, *highscoretxt;
     int i = 0, j, tmp;
+    int indice_pontuacao;
     int scores[MAX_SCORES] = {0}; //pontuacoes exibidas
     int buffer[MAX_SCORES] = {0};
-    char filename[50] = "highscores.bin";
-    //char currentscore[10]; //pontuacao do jogo atual
-    //char playername[50] = "jogador"; //nome do jogador do jogo atual
-    
+    char filename[50] = "../highscores.bin";
+    char playername[21] = "jogador"; //nome do jogador do jogo atual
 
+
+    game.player.pontuacao += (game.player.pontuacao / (0.1 + game.frameCount/500)) * game.player.lives;
+    printf("Pontuacao calculada: %d\n", game.player.pontuacao);
+    
     highscorebin = fopen(filename, "ab+");
     if(!highscorebin){
         puts("Erro ao abrir highcores.bin");
@@ -920,11 +941,11 @@ void finishGame(){FILE *highscorebin;//, *highscoretxt;
             }
             i++;
         }
-        puts("Pontuacao contida em highscores.bin:");
+        /* puts("Pontuacao contida em highscores.bin:");
         for(i = 0; i < MAX_SCORES; i++){
             printf("%5d", scores[i]);
         }
-        printf("\n");
+        printf("\n"); */
 
         for(i = 0; i < MAX_SCORES; i++){
             for(j = 0; j < MAX_SCORES; j++){
@@ -935,16 +956,19 @@ void finishGame(){FILE *highscorebin;//, *highscoretxt;
                 }
             }
         }
-        puts("Pontuacao ordenada:");
+        /* puts("Pontuacao ordenada:");
         for(i = 0; i < MAX_SCORES; i++){
             printf("%5d", scores[i]);
         }
-        printf("\n");
+        printf("\n"); */
 
         for(i = 0; i < MAX_SCORES; i++){
             if(game.player.pontuacao > scores[i]){
+                printf("Voce bateu um recorde!\nDigite seu nome: ");
+                scanf(" %s", playername);
                 tmp = scores[i];
                 scores[i] = game.player.pontuacao;
+                indice_pontuacao = i;
                 scores[MAX_SCORES-1] = tmp;
                 i = 10;
             }
@@ -977,6 +1001,16 @@ void finishGame(){FILE *highscorebin;//, *highscoretxt;
         fclose(highscorebin);
     }
 
+    strcpy(filename, "../highscores.txt");
+    highscoretxt = fopen(filename, "a");
+    if(!highscoretxt){
+        puts("Erro ao abrir highscores.txt");
+    }else{
+        
+        fprintf(highscoretxt, "%s - %d\n", playername, scores[indice_pontuacao]);
+
+        fclose(highscoretxt);
+    }
 }
 
 
@@ -1125,6 +1159,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         game.player.texture = LoadTexture("../sprites/isaac.png");
         game.player.isPlayer = true;
         game.player.active = false;
+        game.player.special_delay = 0;
     }
     game.isLoaded = false;
     if(game.modo_jogo)
@@ -1132,7 +1167,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
 
     //-----------------------------------------------------------------------------
     //-----------------------------------------------------------------------------
-    while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p') {
+    while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p' && game.state != 'g') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
         
         if(IsKeyPressed(KEY_Y)){ //Especial do personagem
@@ -1149,10 +1184,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             puts("Game paused");
             game.state = 'e';
             menu(1);
-            if (game.state == 'g') {
-                finishGame();
-                return; // Remove um bug de o jogador iniciar um novo jogo pelo pause e morrer na primeira fase e nao exibir o game over
-            }
         }
 
         // Define as direcoes dx e dy do jogador:
@@ -1234,6 +1265,8 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
 
         for (i = 0; i < game.n_gaper; i++) {
             if(game.gaper[i].active){
+                checkCollision(&game.gaper[i]);
+                
                 if (rayCast(game.gaper[i], game.player)) {
                     // Chama a funcao que verifica se tem paredes entre o gaper e o jogador
                     game.gaper[i].canChase = false;
@@ -1251,7 +1284,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                         redefineDeslocamento(&game.gaper[i], &enemy_steps);
                     }
                 }
-                checkCollision(&game.gaper[i]);
+                game.gaper[i].collided = false;
                 game.gaper[i].canChase = true;
             
             }
@@ -1259,6 +1292,8 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
 
         for (i = 0; i < game.n_pooter; i++) {
             if(game.pooter[i].active){
+                checkCollision(&game.pooter[i]);
+
                 if (enemy_steps == 0)
                     redefineDeslocamento(&game.pooter[i], &enemy_steps);
                 if (game.pooter[i].collided) {
@@ -1288,9 +1323,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
                             enemy_steps--;
                         }
                     
-
-                
-                checkCollision(&game.pooter[i]);
+                game.pooter[i].collided = false;
                 game.pooter[i].canChase = true;
             }
             moverProjeteis(&game.pooter[i]);
@@ -1385,9 +1418,15 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         /* printf("\nplayer health: %d\n", game.player.health);
         printf("player lives: %d\n", game.player.lives);*/
         //printf("player bombs: %d\n", game.player.n_bombs);
- 
+        
+        if(game.player.special_delay > 0){
+            game.player.special_delay -= GetFrameTime();
+        }
         if (IsKeyPressed(KEY_SPACE)) {
-            game.state = 'p';
+            if(game.player.special_delay <= 0){
+                game.player.active = false;
+                game.player.special_delay = SPECIAL_DELAY;
+            }
         }
 
         // Portal
@@ -1395,15 +1434,10 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
             game.player.pontuacao += 300;
             game.state = 'p';
         }
-        // Game Over:
-        if (IsKeyPressed(KEY_MINUS))
-            game.player.health = 0;
+        // Game Over
         if (!game.player.lives) {
-            char text[30];
             game.state = 'g';
-            strcpy(text, "Game Over!");
-            DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE + 10) / 2, ALTURA / 2 - FONT_SIZE + 10, FONT_SIZE, RED);
-            return;
+            
         }
 
         
@@ -1415,6 +1449,9 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         //Reseta as direcoes do jogador pra ele nao ficar deslizando
         game.player.dx = 0;
         game.player.dy = 0;
+        if(IsKeyPressed(KEY_MINUS)){
+            game.player.lives --;
+        }
     }
 
     //------------------------------------------------------------------------------------------------
@@ -1423,11 +1460,21 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         puts("Changing current map...\n");
         if (game.current_map < MAX_MAPS)
             game.current_map++;
-        else{
-            finishGame();
+        else{            
+            //finishGame();
         }
         novo_jogo();
     }
+
+
+    if(game.state == 'g'){
+        char text[30];
+        finishGame();
+        strcpy(text, "Game Over!");
+        DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE + 10) / 2, ALTURA / 2 - FONT_SIZE + 10, FONT_SIZE, RED);
+        return;
+    }
+
 }
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------
