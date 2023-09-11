@@ -4,9 +4,6 @@
 #ignore .o files
 *.o
 
-#ignore makefile
-makefile
-
 #ignore binaries files (like saves)
 *.bin
 
