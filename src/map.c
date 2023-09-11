@@ -4,6 +4,7 @@ Esse algoritmo pega um ponto aleatorio ou nao do mapa e comeca a gerar caminhos 
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include "map.h"
 
 
 //////////////////////////////////////////////////////

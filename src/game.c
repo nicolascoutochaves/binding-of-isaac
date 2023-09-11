@@ -1,4 +1,5 @@
-#include "map.c"
+
+#include "map.h"
 #include "raylib.h"
 #include <math.h>
 #include <string.h>
@@ -906,46 +907,54 @@ void moverProjeteis(ENTIDADE *ent){
     
 }
 
-void highscores(){
+void highscores(){ // Exibe na tela as pontuacoes recordes (Sera adicionado no futuro)
+
     FILE *highscores;
     char filename[50] = "../highscores.txt";
+    char pontuacao[200];
+    int i = 0;
 
     highscores = fopen(filename, "r");
     if (!highscores){
         puts("Erro ao ler os placares");
+    }else{
+        
+        while(!feof(highscores)){
+            pontuacao[i] = getc(highscores);
+            i++;
+        }
+        pontuacao[i-1] = '\0';
+    
+        DrawTextEx(GetFontDefault(), pontuacao, (Vector2){LARGURA/2, 100}, 10, 0, BLACK);
+        fclose(highscores);
     }
 }
 
 void finishGame(){FILE *highscorebin, *highscoretxt;
     int i = 0, j, tmp;
-    int indice_pontuacao;
-    int scores[MAX_SCORES] = {0}; //pontuacoes exibidas
+    int indice_pontuacao = 0;
+    int scores[MAX_SCORES] = {-1}; //pontuacoes exibidas
     int buffer[MAX_SCORES] = {0};
     char filename[50] = "../highscores.bin";
-    char playername[21] = "jogador"; //nome do jogador do jogo atual
+    //char playername[21] = "jogador"; //nome do jogador do jogo atual
 
 
-    game.player.pontuacao += (game.player.pontuacao / (0.1 + game.frameCount/500)) * game.player.lives;
+    //game.player.pontuacao += (game.player.pontuacao / (0.1 + game.frameCount/50)) * game.player.lives;
     printf("Pontuacao calculada: %d\n", game.player.pontuacao);
     
-    highscorebin = fopen(filename, "ab+");
+    highscorebin = fopen(filename, "rb");
     if(!highscorebin){
         puts("Erro ao abrir highcores.bin");
     } else{
         i = 0;
         while(i < MAX_SCORES && !feof(highscorebin)){
             if((fread(&buffer[i], sizeof(int), 1, highscorebin)) != 1){
-                puts("Erro ao obter as pontuacoes do arquivo highscores.bin");
+                puts("Sem arquivos de scores! Criando novo arquivo...");
             }else{
                 scores[i] = buffer[i];
             }
             i++;
         }
-        /* puts("Pontuacao contida em highscores.bin:");
-        for(i = 0; i < MAX_SCORES; i++){
-            printf("%5d", scores[i]);
-        }
-        printf("\n"); */
 
         for(i = 0; i < MAX_SCORES; i++){
             for(j = 0; j < MAX_SCORES; j++){
@@ -956,16 +965,15 @@ void finishGame(){FILE *highscorebin, *highscoretxt;
                 }
             }
         }
-        /* puts("Pontuacao ordenada:");
-        for(i = 0; i < MAX_SCORES; i++){
-            printf("%5d", scores[i]);
-        }
-        printf("\n"); */
-
-        for(i = 0; i < MAX_SCORES; i++){
+     
+        fclose(highscorebin);
+    }
+    
+    if(game.player.pontuacao){
+           for(i = 0; i < MAX_SCORES; i++){
             if(game.player.pontuacao > scores[i]){
-                printf("Voce bateu um recorde!\nDigite seu nome: ");
-                scanf(" %s", playername);
+                //printf("Voce bateu um recorde!\nDigite seu nome: ");
+                //scanf(" %s", playername);
                 tmp = scores[i];
                 scores[i] = game.player.pontuacao;
                 indice_pontuacao = i;
@@ -987,30 +995,32 @@ void finishGame(){FILE *highscorebin, *highscoretxt;
             printf("%5d", scores[i]);
         }
         printf("\n");
-        fclose(highscorebin);
-    }
 
-    highscorebin = fopen(filename, "wb");
-    if(!highscorebin){
-        puts("Erro ao abrir arquivo highscores.bin para insercao de scores");
-    } else{
-        if((fwrite(scores, sizeof(int), MAX_SCORES, highscorebin)) != MAX_SCORES){
-            puts("Erro ao gravar a pontuacao do jogador");
+        highscorebin = fopen(filename, "wb");
+        if(!highscorebin){
+            puts("Erro ao abrir arquivo highscores.bin para insercao de scores");
+        } else{
+            if((fwrite(scores, sizeof(int), MAX_SCORES, highscorebin)) != MAX_SCORES){
+                puts("Erro ao gravar a pontuacao do jogador");
+            }
+
+            fclose(highscorebin);
         }
 
-        fclose(highscorebin);
+        strcpy(filename, "../highscores.txt");
+        highscoretxt = fopen(filename, "w");
+        if(!highscoretxt){
+            puts("Erro ao abrir highscores.txt");
+        }else{
+            for(i = 0; i < MAX_SCORES; i++){
+                if(scores[i] >= 0){
+                    fprintf(highscoretxt, "%d - %d\n", i+1,  scores[i]); //Prototipo da gravacao das pontuacoes em arquivo txt
+                }
+            }
+            fclose(highscoretxt);
+        }
     }
 
-    strcpy(filename, "../highscores.txt");
-    highscoretxt = fopen(filename, "a");
-    if(!highscoretxt){
-        puts("Erro ao abrir highscores.txt");
-    }else{
-        
-        fprintf(highscoretxt, "%s - %d\n", playername, scores[indice_pontuacao]);
-
-        fclose(highscoretxt);
-    }
 }
 
 
@@ -1169,7 +1179,9 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
     //-----------------------------------------------------------------------------
     while (!WindowShouldClose() && game.state != 'q' && game.state != 'n' && game.state != 'p' && game.state != 'g') {
         //'q' = sair, 'n' = novo jogo, 'p' = passou de fase
-        
+        if(IsKeyPressed(KEY_G)){
+            highscores();
+        }
         if(IsKeyPressed(KEY_Y)){ //Especial do personagem
             if(game.player.active)
                 game.player.active = false;
@@ -1461,7 +1473,7 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
         if (game.current_map < MAX_MAPS)
             game.current_map++;
         else{            
-            //finishGame();
+            game.state = 'g';
         }
         novo_jogo();
     }
@@ -1469,7 +1481,6 @@ void novo_jogo() //Funcao que carrega um novo jogo (inclusive quando e feito o l
 
     if(game.state == 'g'){
         char text[30];
-        finishGame();
         strcpy(text, "Game Over!");
         DrawText(text, LARGURA / 2 - MeasureText(text, FONT_SIZE + 10) / 2, ALTURA / 2 - FONT_SIZE + 10, FONT_SIZE, RED);
         return;
@@ -1701,9 +1712,14 @@ int main(void) //Funcao principal que apenas chama o menu
     
     
 
-    while (game.state == '\0' || game.state == 'e' || game.state == 'g' || game.state == 'p')
-        menu(0);
+    while (game.state == '\0' || game.state == 'e' || game.state == 'g' || game.state == 'p'){
 
+    
+        menu(0);
+        if(game.state == 'g'){
+            finishGame();
+        }
+    }
     CloseWindow(); // Fecha a janela e o contexto OpenGL
     return 0;
 }
